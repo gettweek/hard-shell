@@ -1,0 +1,29 @@
+# Dev and test files
+dev/
+tests/
+.git/
+.github/
+.claude/
+
+# Documentation
+*.md
+!README.md
+LICENSE
+diagrams/
+
+# Secrets
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Plugin build artifacts (rebuilt in Docker)
+tweek-openclaw-plugin/node_modules/
+tweek-openclaw-plugin/dist/
+tweek-openclaw-plugin/tests/
+
+# IDE
+.vscode/
+.idea/

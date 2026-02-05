@@ -1,0 +1,6 @@
+# Tweek per-directory hook configuration
+# Set to false to disable screening in this directory.
+# This file is protected — only a human can edit it.
+hooks:
+  post_tool_use: true
+  pre_tool_use: true

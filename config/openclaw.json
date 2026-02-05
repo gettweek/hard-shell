@@ -1,0 +1,12 @@
+{
+  "gateway": {
+    "port": 18789
+  },
+  "plugins": {
+    "entries": {
+      "tweek-security": {
+        "enabled": true
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "tweek-security",
+  "kind": "security",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "preset": {
+        "type": "string",
+        "enum": ["trusted", "cautious", "paranoid"],
+        "default": "cautious"
+      },
+      "scannerPort": {
+        "type": "number",
+        "default": 9878
+      }
+    }
+  }
+}

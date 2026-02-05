@@ -1,0 +1,31 @@
+# Hard Shell — Default Tweek Configuration
+# Preset: cautious (balanced security for everyday use)
+
+preset: cautious
+
+scanner:
+  port: 9878
+  # Bind to 0.0.0.0 inside the container so Docker port forwarding works.
+  # The host-side port is restricted to 127.0.0.1 via docker-compose.yml.
+  bind: "0.0.0.0"
+
+screening:
+  rate_limiting:
+    enabled: true
+    burst: 15
+    max_per_minute: 60
+  pattern_matching:
+    enabled: true
+  llm_review:
+    enabled: true
+    prefer_local: true        # Use ONNX model first, cloud fallback
+  session_analysis:
+    enabled: true
+    lookback_minutes: 30
+  output_scanning:
+    enabled: true
+    secret_detection: true
+
+logging:
+  level: INFO
+  redact_sensitive: true

@@ -1,0 +1,49 @@
+{
+  "name": "@tweek/tweek-security",
+  "version": "1.0.0",
+  "description": "AI security scanning plugin for OpenClaw — protect against malicious skills, prompt injection, and credential exfiltration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/ tests/",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "openclaw",
+    "security",
+    "scanning",
+    "supply-chain",
+    "skills",
+    "ai-safety",
+    "tweek"
+  ],
+  "author": "Tweek Security <hello@gettweek.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tweek-security/tweek-openclaw-plugin"
+  },
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ]
+}

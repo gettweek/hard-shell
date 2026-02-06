@@ -64,30 +64,30 @@ case "$cmd" in
         info "Pulling latest changes..."
         git -C "$INSTALL_DIR" pull --ff-only
         info "Rebuilding image..."
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" build
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" build
         info "Restarting..."
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d
         ok "Updated and running."
         ;;
     start)
         info "Starting Hard Shell..."
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d
         ok "Started. Gateway: http://127.0.0.1:18789"
         ;;
     stop)
         info "Stopping Hard Shell..."
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" down
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" down
         ok "Stopped."
         ;;
     restart)
         info "Restarting Hard Shell..."
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" restart
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d --force-recreate
         ok "Restarted."
         ;;
     status)
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" ps
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" ps
         echo ""
-        CONTAINER_ID=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" ps -q hard-shell 2>/dev/null || echo "")
+        CONTAINER_ID=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" ps -q hard-shell 2>/dev/null || echo "")
         if [ -n "$CONTAINER_ID" ]; then
             STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "unknown")
             if [ "$STATUS" = "healthy" ]; then
@@ -100,7 +100,7 @@ case "$cmd" in
         fi
         ;;
     logs)
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" logs "${@:2}"
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" logs "${@:2}"
         ;;
     preset)
         PRESET="${2:-}"
@@ -181,7 +181,7 @@ case "$cmd" in
         read -p "Are you sure? (y/N) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            docker compose -f "$TARGET/docker-compose.yml" down 2>/dev/null || true
+            docker compose -f "$TARGET/docker-compose.yml" --env-file "$TARGET/.env" down 2>/dev/null || true
             docker rmi tweek/hard-shell:latest 2>/dev/null || true
             rm -rf "$TARGET"
             ok "Uninstalled."

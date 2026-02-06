@@ -50,7 +50,7 @@ fi
 # --- Generate gateway auth token if not provided ---
 if [ -z "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
     export OPENCLAW_GATEWAY_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-    echo "[hard-shell] Generated gateway token: $OPENCLAW_GATEWAY_TOKEN"
+    echo "[hard-shell] Generated gateway token (not logged for security)."
 fi
 
 # --- Start Tweek scanner server ---

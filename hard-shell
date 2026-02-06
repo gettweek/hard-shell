@@ -18,6 +18,41 @@ info()  { echo -e "${BLUE}[hard-shell]${NC} $*"; }
 ok()    { echo -e "${GREEN}[hard-shell]${NC} $*"; }
 fail()  { echo -e "${RED}[hard-shell]${NC} $*"; exit 1; }
 
+# Map API key variable name to OpenClaw model identifier
+model_for_provider() {
+    case "$1" in
+        ANTHROPIC_API_KEY) echo "anthropic:claude-sonnet-4-5-20250929" ;;
+        OPENAI_API_KEY)    echo "openai:gpt-4o" ;;
+        GOOGLE_API_KEY)    echo "google:gemini-2.0-flash" ;;
+        XAI_API_KEY)       echo "xai:grok-3" ;;
+        *)                 echo "" ;;
+    esac
+}
+
+# Update model in data/openclaw/openclaw.json
+update_openclaw_model() {
+    local model="$1"
+    local config_file="$INSTALL_DIR/data/openclaw/openclaw.json"
+    if [ -f "$config_file" ] && command -v python3 &> /dev/null; then
+        python3 -c "
+import json
+config_path = '$config_file'
+model = '$model'
+with open(config_path) as f:
+    config = json.load(f)
+config.setdefault('agents', {}).setdefault('defaults', {}).setdefault('model', {})['primary'] = model
+with open(config_path, 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+" 2>/dev/null && info "Model set to: $model" || info "Could not update model config — restart will auto-detect."
+    elif [ -f "$config_file" ]; then
+        # Fallback: use sed if python3 not available
+        sed -i.bak "s|\"primary\": \".*\"|\"primary\": \"$model\"|" "$config_file"
+        rm -f "$config_file.bak"
+        info "Model set to: $model"
+    fi
+}
+
 if [ ! -d "$INSTALL_DIR" ]; then
     fail "Hard Shell not installed. Run: curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash"
 fi
@@ -119,7 +154,13 @@ case "$cmd" in
         rm -f "$INSTALL_DIR/.env.bak"
         echo "$API_KEY_VAR=$API_KEY_VALUE" >> "$INSTALL_DIR/.env"
         ok "API key saved."
-        info "Run 'hard-shell restart' to apply."
+
+        # Update OpenClaw model config to match the provider
+        MODEL=$(model_for_provider "$API_KEY_VAR")
+        if [ -n "$MODEL" ]; then
+            update_openclaw_model "$MODEL"
+        fi
+        info "Run './hard-shell restart' to apply."
         ;;
     uninstall)
         echo -e "${RED}This will stop Hard Shell and remove $INSTALL_DIR${NC}"

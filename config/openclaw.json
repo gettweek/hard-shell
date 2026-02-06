@@ -1,7 +1,15 @@
 {
   "gateway": {
     "port": 18789,
-    "bind": "lan"
+    "bind": "lan",
+    "mode": "local"
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": ""
+      }
+    }
   },
   "plugins": {
     "entries": {

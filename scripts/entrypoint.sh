@@ -40,6 +40,41 @@ if [ ! -f "$HOME/.tweek/config.yaml" ]; then
     cp /opt/hard-shell/config/tweek.yaml "$HOME/.tweek/config.yaml"
 fi
 
+# --- Detect API key and configure LLM provider/model ---
+# OpenClaw needs to know which provider and model to use.
+# Detect from env vars and write into the config.
+OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
+MODEL=""
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    MODEL="anthropic:claude-sonnet-4-5-20250929"
+    echo "[hard-shell] Detected ANTHROPIC_API_KEY — using $MODEL"
+elif [ -n "${GOOGLE_API_KEY:-}" ]; then
+    MODEL="google:gemini-2.0-flash"
+    echo "[hard-shell] Detected GOOGLE_API_KEY — using $MODEL"
+elif [ -n "${OPENAI_API_KEY:-}" ]; then
+    MODEL="openai:gpt-4o"
+    echo "[hard-shell] Detected OPENAI_API_KEY — using $MODEL"
+elif [ -n "${XAI_API_KEY:-}" ]; then
+    MODEL="xai:grok-3"
+    echo "[hard-shell] Detected XAI_API_KEY — using $MODEL"
+else
+    echo "[hard-shell] WARNING: No LLM API key found. Run './hard-shell apikey' on the host."
+fi
+
+if [ -n "$MODEL" ] && [ -f "$OPENCLAW_CONFIG" ]; then
+    python3 -c "
+import json, sys
+config_path = '$OPENCLAW_CONFIG'
+model = '$MODEL'
+with open(config_path) as f:
+    config = json.load(f)
+config.setdefault('agents', {}).setdefault('defaults', {}).setdefault('model', {})['primary'] = model
+with open(config_path, 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+" 2>/dev/null && echo "[hard-shell] Model configured in openclaw.json" || echo "[hard-shell] WARNING: Could not update model config"
+fi
+
 # --- Generate scanner auth token if missing ---
 if [ ! -f "$HOME/.tweek/.scanner_token" ]; then
     python3 -c "import secrets; print(secrets.token_urlsafe(32))" > "$HOME/.tweek/.scanner_token"

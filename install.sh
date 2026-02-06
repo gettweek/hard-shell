@@ -22,6 +22,49 @@ ok()    { echo -e "${GREEN}[hard-shell]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[hard-shell]${NC} $*"; }
 fail()  { echo -e "${RED}[hard-shell]${NC} $*"; exit 1; }
 
+# Map API key variable name to OpenClaw model identifier
+model_for_provider() {
+    case "$1" in
+        ANTHROPIC_API_KEY) echo "anthropic:claude-sonnet-4-5-20250929" ;;
+        OPENAI_API_KEY)    echo "openai:gpt-4o" ;;
+        GOOGLE_API_KEY)    echo "google:gemini-2.0-flash" ;;
+        XAI_API_KEY)       echo "xai:grok-3" ;;
+        *)                 echo "" ;;
+    esac
+}
+
+# Write OpenClaw config with the correct model to data/openclaw/
+write_openclaw_config() {
+    local model="$1"
+    local config_dir="$INSTALL_DIR/data/openclaw"
+    local config_file="$config_dir/openclaw.json"
+    mkdir -p "$config_dir"
+    cat > "$config_file" <<CFGEOF
+{
+  "gateway": {
+    "port": 18789,
+    "bind": "lan",
+    "mode": "local"
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$model"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "tweek-security": {
+        "enabled": true
+      }
+    }
+  }
+}
+CFGEOF
+    info "OpenClaw configured to use model: $model"
+}
+
 # --- Banner ---
 echo ""
 echo -e "${BLUE}╔═══════════════════════════════════════════╗${NC}"
@@ -124,6 +167,11 @@ EOF
             if [ -n "$API_KEY_VALUE" ]; then
                 echo "$API_KEY_VAR=$API_KEY_VALUE" >> "$ENV_FILE"
                 ok "API key saved."
+                # Configure OpenClaw to use the correct provider/model
+                MODEL=$(model_for_provider "$API_KEY_VAR")
+                if [ -n "$MODEL" ]; then
+                    write_openclaw_config "$MODEL"
+                fi
             else
                 warn "No key entered. Add it later:"
                 info "  hard-shell apikey"
@@ -134,6 +182,11 @@ EOF
         warn "Non-interactive shell — skipping API key setup."
         info "After install, run: hard-shell apikey"
     fi
+fi
+
+# --- Ensure OpenClaw config exists with gateway.mode ---
+if [ ! -f "$INSTALL_DIR/data/openclaw/openclaw.json" ]; then
+    write_openclaw_config ""
 fi
 
 # --- Build the image locally ---

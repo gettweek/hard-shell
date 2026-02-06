@@ -61,6 +61,27 @@ class TestInstallerScript:
             content = f.read()
         assert "docker" in content.lower(), "install.sh should check for Docker"
 
+    def test_script_checks_git(self):
+        """Installer should check that Git is installed."""
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "install.sh",
+        )
+        with open(script) as f:
+            content = f.read()
+        assert "git" in content.lower(), "install.sh should check for Git"
+
+    def test_script_clones_repo(self):
+        """Installer should clone the hard-shell repo."""
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "install.sh",
+        )
+        with open(script) as f:
+            content = f.read()
+        assert "git clone" in content, "install.sh should clone the repo"
+        assert "gettweek/hard-shell" in content, "install.sh should reference the hard-shell repo"
+
     def test_script_uses_localhost_only(self):
         """Installer should bind to localhost, never 0.0.0.0."""
         script = os.path.join(
@@ -70,6 +91,17 @@ class TestInstallerScript:
         with open(script) as f:
             content = f.read()
         assert "127.0.0.1" in content, "install.sh should reference localhost binding"
+
+    def test_script_builds_locally(self):
+        """Installer should build the Docker image from source, not pull."""
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "install.sh",
+        )
+        with open(script) as f:
+            content = f.read()
+        assert "docker compose build" in content, "install.sh should build locally"
+        assert "docker pull" not in content, "install.sh should not pull pre-built images"
 
     def test_script_generates_token(self):
         """Installer should generate a gateway auth token."""
@@ -92,63 +124,31 @@ class TestInstallerDirectoryCreation:
     @pytest.fixture
     def install_result(self, install_test_dir):
         """
-        Run the directory-creation parts of install.sh in isolation.
-        We create a wrapper that sources install.sh functions but
-        overrides the Docker commands to no-ops.
+        Simulate the installer's directory creation logic.
+        Instead of cloning from GitHub (which the real installer does),
+        we copy the repo contents into the test directory and generate
+        the .env file, mimicking what install.sh produces.
         """
         test_dir = install_test_dir["home"] / ".hard-shell"
 
-        # Create a minimal test script that simulates the installer's
-        # directory creation without needing Docker
+        # Create a wrapper that simulates git clone + .env generation
+        # without hitting the network or Docker
         wrapper = install_test_dir["dir"] / "test_wrapper.sh"
         wrapper.write_text(f"""#!/usr/bin/env bash
 set -euo pipefail
 
 INSTALL_DIR="{test_dir}"
 
-# Stub docker commands
-docker() {{ echo "docker stub: $@"; return 0; }}
-curl() {{
-    # Simulate downloading config files from the repo
-    local url="${{@: -1}}"
-    local outflag=false
-    local outfile=""
-    for arg in "$@"; do
-        if [ "$outflag" = true ]; then
-            outfile="$arg"
-            outflag=false
-        fi
-        if [ "$arg" = "-o" ]; then
-            outflag=true
-        fi
-    done
-    if [ -n "$outfile" ]; then
-        if echo "$url" | grep -q "openclaw.json"; then
-            cp "{install_test_dir['project_root']}/config/openclaw.json" "$outfile"
-        elif echo "$url" | grep -q "tweek.yaml"; then
-            cp "{install_test_dir['project_root']}/config/tweek.yaml" "$outfile"
-        elif echo "$url" | grep -q "docker-compose"; then
-            cp "{install_test_dir['project_root']}/docker-compose.yml" "$outfile"
-        else
-            touch "$outfile"
-        fi
-    fi
-    return 0
-}}
-export -f docker curl
-
-# Simulate the installer's directory creation logic
+# Simulate git clone by copying the project files
 mkdir -p "$INSTALL_DIR"
-mkdir -p "$INSTALL_DIR/config"
+cp "{install_test_dir['project_root']}/docker-compose.yml" "$INSTALL_DIR/"
+cp -r "{install_test_dir['project_root']}/config" "$INSTALL_DIR/"
+cp "{install_test_dir['project_root']}/Dockerfile" "$INSTALL_DIR/"
 
-# Download configs (uses stubbed curl)
-curl -fsSL "https://example.com/docker-compose.yml" -o "$INSTALL_DIR/docker-compose.yml"
-curl -fsSL "https://example.com/openclaw.json" -o "$INSTALL_DIR/config/openclaw.json"
-curl -fsSL "https://example.com/tweek.yaml" -o "$INSTALL_DIR/config/tweek.yaml"
-
-# Generate gateway token
+# Generate gateway token (same logic as install.sh)
 GATEWAY_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
 cat > "$INSTALL_DIR/.env" <<ENVEOF
+# Hard Shell environment — do not commit this file
 TWEEK_PRESET=cautious
 OPENCLAW_GATEWAY_TOKEN=$GATEWAY_TOKEN
 ENVEOF
@@ -181,19 +181,24 @@ echo "DONE"
     def test_install_dir_created(self, install_result):
         assert install_result["install_dir"].is_dir(), "Install dir not created"
 
-    def test_docker_compose_downloaded(self, install_result):
+    def test_docker_compose_present(self, install_result):
         f = install_result["install_dir"] / "docker-compose.yml"
-        assert f.is_file(), "docker-compose.yml not downloaded"
+        assert f.is_file(), "docker-compose.yml not present in install dir"
         assert f.stat().st_size > 0, "docker-compose.yml is empty"
 
-    def test_openclaw_config_downloaded(self, install_result):
+    def test_dockerfile_present(self, install_result):
+        f = install_result["install_dir"] / "Dockerfile"
+        assert f.is_file(), "Dockerfile not present in install dir (needed for local build)"
+        assert f.stat().st_size > 0, "Dockerfile is empty"
+
+    def test_openclaw_config_present(self, install_result):
         f = install_result["install_dir"] / "config" / "openclaw.json"
-        assert f.is_file(), "openclaw.json not downloaded"
+        assert f.is_file(), "openclaw.json not present"
         assert f.stat().st_size > 0, "openclaw.json is empty"
 
-    def test_tweek_config_downloaded(self, install_result):
+    def test_tweek_config_present(self, install_result):
         f = install_result["install_dir"] / "config" / "tweek.yaml"
-        assert f.is_file(), "tweek.yaml not downloaded"
+        assert f.is_file(), "tweek.yaml not present"
         assert f.stat().st_size > 0, "tweek.yaml is empty"
 
     def test_env_file_created(self, install_result):

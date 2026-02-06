@@ -4,10 +4,10 @@ set -euo pipefail
 # Hard Shell Installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash
 #
-# Installs OpenClaw + Tweek security in one command.
+# Clones the repo, builds the Docker image locally, and starts it.
+# No Docker Hub account or pre-built image required.
 
-REPO="gettweek/hard-shell"
-IMAGE="tweek/hard-shell:latest"
+REPO_URL="https://github.com/gettweek/hard-shell.git"
 INSTALL_DIR="$HOME/.hard-shell"
 
 # Colors
@@ -30,7 +30,7 @@ echo -e "${BLUE}║   Hardened OpenClaw + Tweek Security      ║${NC}"
 echo -e "${BLUE}╚═══════════════════════════════════════════╝${NC}"
 echo ""
 
-# --- Check Docker ---
+# --- Check prerequisites ---
 if ! command -v docker &> /dev/null; then
     fail "Docker is not installed. Please install Docker first: https://docs.docker.com/get-docker/"
 fi
@@ -39,9 +39,12 @@ if ! docker info &> /dev/null 2>&1; then
     fail "Docker is not running. Please start Docker and try again."
 fi
 
-# --- Check Docker Compose ---
 if ! docker compose version &> /dev/null 2>&1; then
     fail "Docker Compose is not available. Please update Docker or install the compose plugin."
+fi
+
+if ! command -v git &> /dev/null; then
+    fail "Git is not installed. Please install Git first."
 fi
 
 # --- Detect platform ---
@@ -50,45 +53,24 @@ OS=$(uname -s)
 info "Detected: $OS ($ARCH)"
 
 case "$ARCH" in
-    x86_64|amd64)  PLATFORM="linux/amd64" ;;
-    arm64|aarch64)  PLATFORM="linux/arm64" ;;
+    x86_64|amd64)  ;;
+    arm64|aarch64)  ;;
     *)              fail "Unsupported architecture: $ARCH" ;;
 esac
 
-# --- Create install directory ---
-if [ -d "$INSTALL_DIR" ]; then
+# --- Clone or update the repo ---
+if [ -d "$INSTALL_DIR/.git" ]; then
     warn "Existing installation found at $INSTALL_DIR"
-    read -p "Overwrite configuration? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        info "Keeping existing config. Pulling latest image..."
-    fi
+    info "Pulling latest changes..."
+    git -C "$INSTALL_DIR" pull --ff-only || warn "Could not pull (offline or diverged). Using existing code."
 else
-    mkdir -p "$INSTALL_DIR"
-    info "Created $INSTALL_DIR"
+    if [ -d "$INSTALL_DIR" ]; then
+        warn "Non-git install directory found at $INSTALL_DIR — backing up to ${INSTALL_DIR}.bak"
+        mv "$INSTALL_DIR" "${INSTALL_DIR}.bak.$(date +%s)"
+    fi
+    info "Cloning hard-shell..."
+    git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 fi
-
-# --- Download docker-compose.yml ---
-info "Downloading docker-compose.yml..."
-curl -fsSL "https://raw.githubusercontent.com/$REPO/master/docker-compose.yml" \
-    -o "$INSTALL_DIR/docker-compose.yml"
-
-# --- Download default configs ---
-mkdir -p "$INSTALL_DIR/config"
-
-if [ ! -f "$INSTALL_DIR/config/openclaw.json" ]; then
-    curl -fsSL "https://raw.githubusercontent.com/$REPO/master/config/openclaw.json" \
-        -o "$INSTALL_DIR/config/openclaw.json"
-fi
-
-if [ ! -f "$INSTALL_DIR/config/tweek.yaml" ]; then
-    curl -fsSL "https://raw.githubusercontent.com/$REPO/master/config/tweek.yaml" \
-        -o "$INSTALL_DIR/config/tweek.yaml"
-fi
-
-# --- Pull the image ---
-info "Pulling $IMAGE..."
-docker pull --platform "$PLATFORM" "$IMAGE"
 
 # --- Generate gateway token if not set ---
 ENV_FILE="$INSTALL_DIR/.env"
@@ -103,19 +85,31 @@ EOF
     ok "Generated gateway token."
 fi
 
+# --- Build the image locally ---
+info "Building Docker image (this takes a few minutes on first run)..."
+cd "$INSTALL_DIR"
+docker compose build
+
 # --- Start it up ---
 info "Starting Hard Shell..."
-cd "$INSTALL_DIR"
 docker compose up -d
 
 # --- Wait for health ---
 info "Waiting for services..."
-for i in $(seq 1 30); do
-    if curl -sf "http://127.0.0.1:18789/health" > /dev/null 2>&1; then
+HEALTHY=false
+for i in $(seq 1 60); do
+    STATUS=$(docker inspect --format='{{.State.Health.Status}}' hard-shell 2>/dev/null || echo "starting")
+    if [ "$STATUS" = "healthy" ]; then
+        HEALTHY=true
         break
     fi
-    sleep 1
+    sleep 2
 done
+
+if [ "$HEALTHY" = false ]; then
+    warn "Container did not become healthy within 120s. Check logs:"
+    warn "  cd $INSTALL_DIR && docker compose logs"
+fi
 
 # --- Done ---
 echo ""
@@ -125,7 +119,7 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 ok "Gateway:    http://127.0.0.1:18789"
 ok "Security:   Tweek (cautious preset)"
-ok "Config:     $INSTALL_DIR/"
+ok "Install:    $INSTALL_DIR/"
 echo ""
 info "Next steps:"
 info "  1. Open http://127.0.0.1:18789 in your browser"
@@ -136,4 +130,7 @@ info "Commands:"
 info "  cd $INSTALL_DIR && docker compose logs -f    # View logs"
 info "  cd $INSTALL_DIR && docker compose restart     # Restart"
 info "  cd $INSTALL_DIR && docker compose down        # Stop"
+echo ""
+info "Update:"
+info "  cd $INSTALL_DIR && git pull && docker compose build && docker compose up -d"
 echo ""

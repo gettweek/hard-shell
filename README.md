@@ -68,10 +68,18 @@ cd ~/.hard-shell && docker compose restart
 
 Open **http://localhost:18789** in your browser, or connect your IDE/editor to the gateway.
 
-### Update
+### Manage
+
+The installer adds a `hard-shell` command to your PATH:
 
 ```bash
-cd ~/.hard-shell && git pull && docker compose build && docker compose up -d
+hard-shell status     # Check container health
+hard-shell logs -f    # Follow live logs
+hard-shell restart    # Restart the container
+hard-shell stop       # Stop the container
+hard-shell update     # Pull latest code, rebuild, and restart
+hard-shell preset     # View or change security preset
+hard-shell uninstall  # Remove everything
 ```
 
 ---

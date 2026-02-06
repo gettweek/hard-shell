@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Hard Shell CLI
+# Usage: hard-shell <command>
+
+INSTALL_DIR="${HARD_SHELL_DIR:-$HOME/.hard-shell}"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+info()  { echo -e "${BLUE}[hard-shell]${NC} $*"; }
+ok()    { echo -e "${GREEN}[hard-shell]${NC} $*"; }
+fail()  { echo -e "${RED}[hard-shell]${NC} $*"; exit 1; }
+
+if [ ! -d "$INSTALL_DIR" ]; then
+    fail "Hard Shell not installed. Run: curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash"
+fi
+
+cmd="${1:-help}"
+
+case "$cmd" in
+    update)
+        info "Pulling latest changes..."
+        git -C "$INSTALL_DIR" pull --ff-only
+        info "Rebuilding image..."
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" build
+        info "Restarting..."
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
+        ok "Updated and running."
+        ;;
+    start)
+        info "Starting Hard Shell..."
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
+        ok "Started. Gateway: http://127.0.0.1:18789"
+        ;;
+    stop)
+        info "Stopping Hard Shell..."
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" down
+        ok "Stopped."
+        ;;
+    restart)
+        info "Restarting Hard Shell..."
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" restart
+        ok "Restarted."
+        ;;
+    status)
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" ps
+        echo ""
+        STATUS=$(docker inspect --format='{{.State.Health.Status}}' hard-shell 2>/dev/null || echo "not running")
+        if [ "$STATUS" = "healthy" ]; then
+            ok "Health: $STATUS"
+        else
+            info "Health: $STATUS"
+        fi
+        ;;
+    logs)
+        docker compose -f "$INSTALL_DIR/docker-compose.yml" logs "${@:2}"
+        ;;
+    preset)
+        PRESET="${2:-}"
+        if [ -z "$PRESET" ]; then
+            CURRENT=$(grep "^TWEEK_PRESET=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "cautious")
+            info "Current preset: $CURRENT"
+            echo "  trusted   — Minimal scanning, fingerprint-based approval"
+            echo "  cautious  — Balanced security with LLM review (default)"
+            echo "  paranoid  — Maximum security, fail-closed"
+            echo ""
+            echo "Usage: hard-shell preset <name>"
+        else
+            case "$PRESET" in
+                trusted|cautious|paranoid)
+                    sed -i.bak "s/^TWEEK_PRESET=.*/TWEEK_PRESET=$PRESET/" "$INSTALL_DIR/.env"
+                    rm -f "$INSTALL_DIR/.env.bak"
+                    info "Preset changed to: $PRESET"
+                    info "Run 'hard-shell restart' to apply."
+                    ;;
+                *)
+                    fail "Unknown preset: $PRESET (valid: trusted, cautious, paranoid)"
+                    ;;
+            esac
+        fi
+        ;;
+    uninstall)
+        echo -e "${RED}This will stop Hard Shell and remove $INSTALL_DIR${NC}"
+        read -p "Are you sure? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            docker compose -f "$INSTALL_DIR/docker-compose.yml" down 2>/dev/null || true
+            docker rmi tweek/hard-shell:latest 2>/dev/null || true
+            rm -rf "$INSTALL_DIR"
+            rm -f "$HOME/.local/bin/hard-shell"
+            ok "Uninstalled."
+        fi
+        ;;
+    help|--help|-h)
+        echo "Hard Shell — Hardened OpenClaw + Tweek Security"
+        echo ""
+        echo "Usage: hard-shell <command>"
+        echo ""
+        echo "Commands:"
+        echo "  start       Start the container"
+        echo "  stop        Stop the container"
+        echo "  restart     Restart the container"
+        echo "  update      Pull latest code, rebuild, and restart"
+        echo "  status      Show container health and status"
+        echo "  logs        View container logs (pass -f to follow)"
+        echo "  preset      View or change the security preset"
+        echo "  uninstall   Remove Hard Shell"
+        echo "  help        Show this help"
+        ;;
+    *)
+        fail "Unknown command: $cmd (run 'hard-shell help' for usage)"
+        ;;
+esac

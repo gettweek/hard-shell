@@ -81,7 +81,7 @@ fi
 
 # --- Start OpenClaw gateway ---
 echo "[hard-shell] Starting OpenClaw gateway on port $GATEWAY_PORT..."
-openclaw gateway --port "$GATEWAY_PORT" --token "$OPENCLAW_GATEWAY_TOKEN" --allow-unconfigured &
+openclaw gateway --port "$GATEWAY_PORT" --token "$OPENCLAW_GATEWAY_TOKEN" --bind lan --allow-unconfigured &
 GATEWAY_PID=$!
 
 # Wait for gateway to be healthy

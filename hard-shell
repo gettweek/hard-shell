@@ -53,6 +53,17 @@ with open(config_path, 'w') as f:
     fi
 }
 
+# Build the tokenized gateway URL
+gateway_url() {
+    local token
+    token=$(grep "^OPENCLAW_GATEWAY_TOKEN=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "")
+    if [ -n "$token" ]; then
+        echo "http://127.0.0.1:18789/?token=$token"
+    else
+        echo "http://127.0.0.1:18789"
+    fi
+}
+
 if [ ! -d "$INSTALL_DIR" ]; then
     fail "Hard Shell not installed. Run: curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash"
 fi
@@ -67,12 +78,12 @@ case "$cmd" in
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" build
         info "Restarting..."
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d
-        ok "Updated and running."
+        ok "Updated and running. Gateway: $(gateway_url)"
         ;;
     start)
         info "Starting Hard Shell..."
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d
-        ok "Started. Gateway: http://127.0.0.1:18789"
+        ok "Started. Gateway: $(gateway_url)"
         ;;
     stop)
         info "Stopping Hard Shell..."
@@ -82,7 +93,7 @@ case "$cmd" in
     restart)
         info "Restarting Hard Shell..."
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d --force-recreate
-        ok "Restarted."
+        ok "Restarted. Gateway: $(gateway_url)"
         ;;
     status)
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" ps
@@ -162,6 +173,9 @@ case "$cmd" in
         fi
         info "Run './hard-shell restart' to apply."
         ;;
+    url)
+        echo "$(gateway_url)"
+        ;;
     uninstall)
         # Resolve target: explicit path > current directory > script directory
         TARGET="${2:-}"
@@ -201,6 +215,7 @@ case "$cmd" in
         echo "  logs        View container logs (pass -f to follow)"
         echo "  preset      View or change the security preset"
         echo "  apikey      Configure your LLM API key"
+        echo "  url         Print the gateway URL (with auth token)"
         echo "  uninstall   Remove Hard Shell (optional: path to instance)"
         echo "  help        Show this help"
         ;;

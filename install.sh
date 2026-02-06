@@ -221,18 +221,25 @@ if [ "$HEALTHY" = false ]; then
     warn "  cd $INSTALL_DIR && docker compose logs"
 fi
 
+# --- Build tokenized gateway URL ---
+GATEWAY_TOKEN=$(grep "^OPENCLAW_GATEWAY_TOKEN=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "")
+GATEWAY_URL="http://127.0.0.1:18789"
+if [ -n "$GATEWAY_TOKEN" ]; then
+    GATEWAY_URL="http://127.0.0.1:18789/?token=$GATEWAY_TOKEN"
+fi
+
 # --- Done ---
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║        Hard Shell is running!             ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════╝${NC}"
 echo ""
-ok "Gateway:    http://127.0.0.1:18789"
+ok "Gateway:    $GATEWAY_URL"
 ok "Security:   Tweek (cautious preset)"
 ok "Install:    $INSTALL_DIR/"
 echo ""
 info "Next steps:"
-info "  1. Open http://127.0.0.1:18789 in your browser"
+info "  1. Open $GATEWAY_URL in your browser"
 info "  2. Complete the onboarding wizard (add your LLM API key)"
 info "  3. Connect your messaging platforms"
 echo ""

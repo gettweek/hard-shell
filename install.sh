@@ -192,22 +192,22 @@ fi
 # --- Build the image locally ---
 info "Building Docker image (this takes a few minutes on first run)..."
 cd "$INSTALL_DIR"
-docker compose build
+docker compose --env-file "$INSTALL_DIR/.env" build
 
 # --- Start it up ---
 info "Starting Hard Shell..."
-docker compose up -d
+docker compose --env-file "$INSTALL_DIR/.env" up -d
 
 # --- Wait for health ---
 info "Waiting for services..."
 HEALTHY=false
-CONTAINER_NAME=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" ps -q hard-shell 2>/dev/null || echo "")
+CONTAINER_NAME=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" ps -q hard-shell 2>/dev/null || echo "")
 for i in $(seq 1 60); do
     if [ -n "$CONTAINER_NAME" ]; then
         STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "starting")
     else
         STATUS="starting"
-        CONTAINER_NAME=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" ps -q hard-shell 2>/dev/null || echo "")
+        CONTAINER_NAME=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" ps -q hard-shell 2>/dev/null || echo "")
     fi
     if [ "$STATUS" = "healthy" ]; then
         HEALTHY=true

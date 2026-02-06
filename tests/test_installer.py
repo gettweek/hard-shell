@@ -123,7 +123,7 @@ class TestInstallerScript:
         )
         with open(script) as f:
             content = f.read()
-        assert "docker compose build" in content, "install.sh should build locally"
+        assert "docker compose" in content and "build" in content, "install.sh should build locally"
         assert "docker pull" not in content, "install.sh should not pull pre-built images"
 
     def test_script_generates_token(self):

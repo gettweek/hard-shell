@@ -85,51 +85,61 @@ EOF
     ok "Generated gateway token."
 
     # --- Prompt for LLM API key ---
-    echo ""
-    info "OpenClaw needs an LLM API key to work."
-    echo ""
-    echo "  1) Anthropic (Claude)"
-    echo "  2) OpenAI (GPT-4)"
-    echo "  3) Google (Gemini)"
-    echo "  4) xAI (Grok)"
-    echo "  5) Other provider"
-    echo "  6) Skip (configure later)"
-    echo ""
-    read -p "Choose your provider [1-6]: " -n 1 -r PROVIDER_CHOICE < /dev/tty
-    echo ""
-
-    API_KEY_VAR=""
-    case "${PROVIDER_CHOICE:-6}" in
-        1) API_KEY_VAR="ANTHROPIC_API_KEY" ; info "Selected: Anthropic" ;;
-        2) API_KEY_VAR="OPENAI_API_KEY"    ; info "Selected: OpenAI" ;;
-        3) API_KEY_VAR="GOOGLE_API_KEY"    ; info "Selected: Google" ;;
-        4) API_KEY_VAR="XAI_API_KEY"       ; info "Selected: xAI (Grok)" ;;
-        5) info "To configure another provider, add its API key to your .env file:"
-           info ""
-           info "  echo \"PROVIDER_API_KEY=your-key\" >> $ENV_FILE"
-           info "  hard-shell restart"
-           info ""
-           info "OpenClaw supports any OpenAI-compatible API. Set the base URL"
-           info "and key in ~/.hard-shell/config/openclaw.json under the"
-           info "\"providers\" section. See https://github.com/openclaw/openclaw"
-           info "for full provider documentation."
-           ;;
-        6|*) info "Skipping API key setup. You can add it later:" ;
-             info "  hard-shell apikey" ;
-             info "  hard-shell restart" ;;
-    esac
-
-    if [ -n "$API_KEY_VAR" ]; then
+    # Note: Must read from /dev/tty since stdin may be a curl pipe.
+    if [ -t 0 ] || [ -e /dev/tty ]; then
         echo ""
-        read -p "Paste your API key: " -r API_KEY_VALUE < /dev/tty
-        if [ -n "$API_KEY_VALUE" ]; then
-            echo "$API_KEY_VAR=$API_KEY_VALUE" >> "$ENV_FILE"
-            ok "API key saved."
-        else
-            warn "No key entered. Add it later:"
-            info "  echo \"$API_KEY_VAR=your-key\" >> $ENV_FILE"
-            info "  hard-shell restart"
+        info "OpenClaw needs an LLM API key to work."
+        echo ""
+        echo "  1) Anthropic (Claude)"
+        echo "  2) OpenAI (GPT-4)"
+        echo "  3) Google (Gemini)"
+        echo "  4) xAI (Grok)"
+        echo "  5) Other provider"
+        echo "  6) Skip (configure later)"
+        echo ""
+        echo -n "Choose your provider [1-6]: "
+        PROVIDER_CHOICE=""
+        read PROVIDER_CHOICE < /dev/tty || true
+        echo ""
+
+        API_KEY_VAR=""
+        case "${PROVIDER_CHOICE:-6}" in
+            1) API_KEY_VAR="ANTHROPIC_API_KEY" ; info "Selected: Anthropic" ;;
+            2) API_KEY_VAR="OPENAI_API_KEY"    ; info "Selected: OpenAI" ;;
+            3) API_KEY_VAR="GOOGLE_API_KEY"    ; info "Selected: Google" ;;
+            4) API_KEY_VAR="XAI_API_KEY"       ; info "Selected: xAI (Grok)" ;;
+            5) info "To configure another provider, add its API key to your .env file:"
+               info ""
+               info "  echo \"PROVIDER_API_KEY=your-key\" >> $ENV_FILE"
+               info "  hard-shell restart"
+               info ""
+               info "OpenClaw supports any OpenAI-compatible API. Set the base URL"
+               info "and key in ~/.hard-shell/config/openclaw.json under the"
+               info "\"providers\" section. See https://github.com/openclaw/openclaw"
+               info "for full provider documentation."
+               ;;
+            6|*) info "Skipping API key setup. You can add it later:" ;
+                 info "  hard-shell apikey" ;
+                 info "  hard-shell restart" ;;
+        esac
+
+        if [ -n "$API_KEY_VAR" ]; then
+            echo ""
+            echo -n "Paste your $API_KEY_VAR: "
+            API_KEY_VALUE=""
+            read API_KEY_VALUE < /dev/tty || true
+            if [ -n "$API_KEY_VALUE" ]; then
+                echo "$API_KEY_VAR=$API_KEY_VALUE" >> "$ENV_FILE"
+                ok "API key saved."
+            else
+                warn "No key entered. Add it later:"
+                info "  hard-shell apikey"
+                info "  hard-shell restart"
+            fi
         fi
+    else
+        warn "Non-interactive shell — skipping API key setup."
+        info "After install, run: hard-shell apikey"
     fi
 fi
 

@@ -32,16 +32,27 @@ AI coding assistants are powerful but risky. They can:
 ## Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose installed
-- An Anthropic API key (or other supported LLM provider)
+- [Docker](https://docs.docker.com/get-docker/) (with Docker Compose)
+- [Git](https://git-scm.com/downloads)
+- An LLM API key (Anthropic, OpenAI, or other supported provider)
 
-### Install
+### Install (one command)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash
 ```
 
-This creates `~/.hard-shell/` with all configuration files and starts the container.
+That's it. The installer clones this repo, builds the Docker image locally, generates a secure gateway token, and starts the hardened container. No Docker Hub account or pre-built images required — everything builds from source on your machine.
+
+**First build takes ~5 minutes** (downloads OpenClaw + Tweek + dependencies). Subsequent builds are fast thanks to Docker layer caching.
+
+### Or install manually
+
+```bash
+git clone https://github.com/gettweek/hard-shell.git ~/.hard-shell
+cd ~/.hard-shell
+docker compose up -d
+```
 
 ### Configure your API key
 
@@ -50,12 +61,18 @@ This creates `~/.hard-shell/` with all configuration files and starts the contai
 echo "ANTHROPIC_API_KEY=sk-ant-..." >> ~/.hard-shell/.env
 
 # Restart to apply
-cd ~/.hard-shell && docker compose up -d
+cd ~/.hard-shell && docker compose restart
 ```
 
 ### Connect
 
 Open **http://localhost:18789** in your browser, or connect your IDE/editor to the gateway.
+
+### Update
+
+```bash
+cd ~/.hard-shell && git pull && docker compose build && docker compose up -d
+```
 
 ---
 
@@ -119,14 +136,21 @@ Hard Shell follows Docker security best practices:
 
 ### Files
 
+After install, `~/.hard-shell/` is a full clone of this repo plus your local `.env`:
+
 ```
 ~/.hard-shell/
-├── .env                 # Environment variables (API keys, preset)
-├── docker-compose.yml   # Container configuration
+├── .env                    # Your environment variables (API keys, preset) — not tracked
+├── Dockerfile              # Multi-stage Docker build
+├── docker-compose.yml      # Hardened container configuration
+├── install.sh              # The installer you ran
 ├── config/
-│   ├── openclaw.json    # OpenClaw settings
-│   └── tweek.yaml       # Tweek scanner settings
-└── workspace/           # Your project files (mounted)
+│   ├── openclaw.json       # OpenClaw gateway settings
+│   └── tweek.yaml          # Tweek scanner settings
+├── scripts/
+│   ├── entrypoint.sh       # Container startup orchestrator
+│   └── healthcheck.sh      # Docker health probe
+└── tweek-openclaw-plugin/  # TypeScript security plugin source
 ```
 
 ---
@@ -172,25 +196,24 @@ Tweek integrates with OpenClaw via a plugin that registers hooks into the gatewa
 
 ## Development
 
+### Build and Run
+
+```bash
+git clone https://github.com/gettweek/hard-shell.git
+cd hard-shell
+docker compose up -d
+```
+
 ### Run Tests
 
 ```bash
-# Install test dependencies
 pip install pytest
 
-# Run the full test suite
+# Full integration test suite (builds image + starts container)
 pytest tests/ -v
 ```
 
-### Build Locally
-
-```bash
-# Build the Docker image
-docker build -t hard-shell:local .
-
-# Run with docker-compose
-docker compose up
-```
+Tests cover container hardening, image contents, service startup, plugin integration, and live screening verification (78 tests total).
 
 ### Project Structure
 

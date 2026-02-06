@@ -13,6 +13,12 @@ services:
       - TWEEK_PRESET=${TWEEK_PRESET:-cautious}
       - OPENCLAW_GATEWAY_PORT=18789
       - TWEEK_SCANNER_PORT=9878
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      # LLM API keys — only the one you configured will be non-empty
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
     security_opt:
       - no-new-privileges:true
     cap_drop:

@@ -3,8 +3,11 @@ set -euo pipefail
 
 # Hard Shell CLI
 # Usage: hard-shell <command>
+# Runs from the directory where this script lives (supports multiple instances).
 
-INSTALL_DIR="${HARD_SHELL_DIR:-$HOME/.hard-shell}"
+# Resolve the real directory of this script (follows symlinks)
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
+INSTALL_DIR="${HARD_SHELL_DIR:-$SCRIPT_PATH}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -49,11 +52,16 @@ case "$cmd" in
     status)
         docker compose -f "$INSTALL_DIR/docker-compose.yml" ps
         echo ""
-        STATUS=$(docker inspect --format='{{.State.Health.Status}}' hard-shell 2>/dev/null || echo "not running")
-        if [ "$STATUS" = "healthy" ]; then
-            ok "Health: $STATUS"
+        CONTAINER_ID=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" ps -q hard-shell 2>/dev/null || echo "")
+        if [ -n "$CONTAINER_ID" ]; then
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "unknown")
+            if [ "$STATUS" = "healthy" ]; then
+                ok "Health: $STATUS"
+            else
+                info "Health: $STATUS"
+            fi
         else
-            info "Health: $STATUS"
+            info "Health: not running"
         fi
         ;;
     logs)
@@ -121,7 +129,6 @@ case "$cmd" in
             docker compose -f "$INSTALL_DIR/docker-compose.yml" down 2>/dev/null || true
             docker rmi tweek/hard-shell:latest 2>/dev/null || true
             rm -rf "$INSTALL_DIR"
-            rm -f "$HOME/.local/bin/hard-shell"
             ok "Uninstalled."
         fi
         ;;

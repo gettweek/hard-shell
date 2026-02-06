@@ -8,7 +8,7 @@ set -euo pipefail
 # No Docker Hub account or pre-built image required.
 
 REPO_URL="https://github.com/gettweek/hard-shell.git"
-INSTALL_DIR="$HOME/.hard-shell"
+INSTALL_DIR="$(pwd)/hard-shell"
 
 # Colors
 RED='\033[0;31m'
@@ -72,6 +72,10 @@ else
     git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
+# --- Create data directories (bind-mounted into container) ---
+mkdir -p "$INSTALL_DIR/data/openclaw" "$INSTALL_DIR/data/tweek" "$INSTALL_DIR/data/workspace"
+info "Data directories: $INSTALL_DIR/data/"
+
 # --- Generate gateway token and configure API key ---
 ENV_FILE="$INSTALL_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
@@ -132,28 +136,6 @@ EOF
     fi
 fi
 
-# --- Install the CLI ---
-CLI_DIR="$HOME/.local/bin"
-mkdir -p "$CLI_DIR"
-ln -sf "$INSTALL_DIR/hard-shell" "$CLI_DIR/hard-shell"
-
-# Add ~/.local/bin to PATH if not already there
-if ! echo "$PATH" | grep -q "$CLI_DIR"; then
-    SHELL_NAME=$(basename "$SHELL")
-    case "$SHELL_NAME" in
-        zsh)  RC_FILE="$HOME/.zshrc" ;;
-        bash) RC_FILE="$HOME/.bashrc" ;;
-        *)    RC_FILE="" ;;
-    esac
-    if [ -n "$RC_FILE" ]; then
-        if ! grep -q '.local/bin' "$RC_FILE" 2>/dev/null; then
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$RC_FILE"
-            info "Added ~/.local/bin to PATH in $RC_FILE"
-        fi
-    fi
-    export PATH="$CLI_DIR:$PATH"
-fi
-
 # --- Build the image locally ---
 info "Building Docker image (this takes a few minutes on first run)..."
 cd "$INSTALL_DIR"
@@ -166,8 +148,14 @@ docker compose up -d
 # --- Wait for health ---
 info "Waiting for services..."
 HEALTHY=false
+CONTAINER_NAME=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" ps -q hard-shell 2>/dev/null || echo "")
 for i in $(seq 1 60); do
-    STATUS=$(docker inspect --format='{{.State.Health.Status}}' hard-shell 2>/dev/null || echo "starting")
+    if [ -n "$CONTAINER_NAME" ]; then
+        STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "starting")
+    else
+        STATUS="starting"
+        CONTAINER_NAME=$(docker compose -f "$INSTALL_DIR/docker-compose.yml" ps -q hard-shell 2>/dev/null || echo "")
+    fi
     if [ "$STATUS" = "healthy" ]; then
         HEALTHY=true
         break
@@ -195,11 +183,16 @@ info "  1. Open http://127.0.0.1:18789 in your browser"
 info "  2. Complete the onboarding wizard (add your LLM API key)"
 info "  3. Connect your messaging platforms"
 echo ""
-info "Commands:"
-info "  hard-shell status     # Check health"
-info "  hard-shell logs -f    # View logs"
-info "  hard-shell restart    # Restart"
-info "  hard-shell stop       # Stop"
-info "  hard-shell update     # Pull latest + rebuild"
-info "  hard-shell help       # All commands"
+info "Your files:"
+info "  Config:    $INSTALL_DIR/.env"
+info "  Data:      $INSTALL_DIR/data/"
+info "  Workspace: $INSTALL_DIR/data/workspace/"
+echo ""
+info "Commands (run from $INSTALL_DIR/):"
+info "  ./hard-shell status     # Check health"
+info "  ./hard-shell logs -f    # View logs"
+info "  ./hard-shell restart    # Restart"
+info "  ./hard-shell stop       # Stop"
+info "  ./hard-shell update     # Pull latest + rebuild"
+info "  ./hard-shell help       # All commands"
 echo ""

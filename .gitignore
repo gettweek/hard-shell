@@ -23,6 +23,9 @@ oauth2.json
 # Docker secrets
 docker-compose.override.yml
 
+# Instance data (bind-mounted into container)
+data/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -2,13 +2,12 @@ services:
   hard-shell:
     build: .
     image: tweek/hard-shell:latest
-    container_name: hard-shell
     ports:
-      - "127.0.0.1:18789:18789"      # Gateway — localhost only
+      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"  # Gateway — localhost only
     volumes:
-      - hard-shell-config:/home/node/.openclaw
-      - hard-shell-tweek:/home/node/.tweek
-      - hard-shell-workspace:/home/node/workspace
+      - ./data/openclaw:/home/node/.openclaw
+      - ./data/tweek:/home/node/.tweek
+      - ./data/workspace:/home/node/workspace
     environment:
       - TWEEK_PRESET=${TWEEK_PRESET:-cautious}
       - OPENCLAW_GATEWAY_PORT=18789
@@ -31,8 +30,3 @@ services:
     cpus: 2.0
     pids_limit: 256
     restart: unless-stopped
-
-volumes:
-  hard-shell-config:
-  hard-shell-tweek:
-  hard-shell-workspace:

@@ -92,6 +92,29 @@ class TestInstallerScript:
             content = f.read()
         assert "127.0.0.1" in content, "install.sh should reference localhost binding"
 
+    def test_script_installs_to_current_dir(self):
+        """Installer should clone into the current directory, not ~/.hard-shell."""
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "install.sh",
+        )
+        with open(script) as f:
+            content = f.read()
+        assert "$(pwd)/hard-shell" in content, "install.sh should install to current directory"
+        assert '$HOME/.hard-shell' not in content, "install.sh should not use ~/.hard-shell"
+
+    def test_script_creates_data_dirs(self):
+        """Installer should create data directories for bind mounts."""
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "install.sh",
+        )
+        with open(script) as f:
+            content = f.read()
+        assert "data/openclaw" in content, "install.sh should create data/openclaw"
+        assert "data/tweek" in content, "install.sh should create data/tweek"
+        assert "data/workspace" in content, "install.sh should create data/workspace"
+
     def test_script_builds_locally(self):
         """Installer should build the Docker image from source, not pull."""
         script = os.path.join(
@@ -129,7 +152,7 @@ class TestInstallerDirectoryCreation:
         we copy the repo contents into the test directory and generate
         the .env file, mimicking what install.sh produces.
         """
-        test_dir = install_test_dir["home"] / ".hard-shell"
+        test_dir = install_test_dir["dir"] / "hard-shell"
 
         # Create a wrapper that simulates git clone + .env generation
         # without hitting the network or Docker
@@ -144,6 +167,9 @@ mkdir -p "$INSTALL_DIR"
 cp "{install_test_dir['project_root']}/docker-compose.yml" "$INSTALL_DIR/"
 cp -r "{install_test_dir['project_root']}/config" "$INSTALL_DIR/"
 cp "{install_test_dir['project_root']}/Dockerfile" "$INSTALL_DIR/"
+
+# Create data directories (bind-mounted into container)
+mkdir -p "$INSTALL_DIR/data/openclaw" "$INSTALL_DIR/data/tweek" "$INSTALL_DIR/data/workspace"
 
 # Generate gateway token (same logic as install.sh)
 GATEWAY_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
@@ -227,3 +253,11 @@ echo "DONE"
         f = install_result["install_dir"] / ".env"
         content = f.read_text()
         assert "TWEEK_PRESET=cautious" in content, "Missing TWEEK_PRESET in .env"
+
+    def test_data_directories_created(self, install_result):
+        """Data directories for bind mounts should be created."""
+        data = install_result["install_dir"] / "data"
+        assert data.is_dir(), "data/ directory not created"
+        assert (data / "openclaw").is_dir(), "data/openclaw/ not created"
+        assert (data / "tweek").is_dir(), "data/tweek/ not created"
+        assert (data / "workspace").is_dir(), "data/workspace/ not created"

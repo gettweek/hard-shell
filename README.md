@@ -42,15 +42,18 @@ AI coding assistants are powerful but risky. They can:
 curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash
 ```
 
-That's it. The installer clones this repo, builds the Docker image locally, generates a secure gateway token, and starts the hardened container. No Docker Hub account or pre-built images required — everything builds from source on your machine.
+That's it. The installer clones this repo into `./hard-shell/` in your current directory, builds the Docker image locally, generates a secure gateway token, and starts the hardened container. No Docker Hub account or pre-built images required — everything builds from source on your machine.
+
+You can install multiple instances in different directories, each with their own configuration and data.
 
 **First build takes ~5 minutes** (downloads OpenClaw + Tweek + dependencies). Subsequent builds are fast thanks to Docker layer caching.
 
 ### Or install manually
 
 ```bash
-git clone https://github.com/gettweek/hard-shell.git ~/.hard-shell
-cd ~/.hard-shell
+git clone https://github.com/gettweek/hard-shell.git
+cd hard-shell
+mkdir -p data/openclaw data/tweek data/workspace
 docker compose up -d
 ```
 
@@ -59,8 +62,9 @@ docker compose up -d
 The installer prompts for your API key during setup. If you skipped it or need to change it:
 
 ```bash
-hard-shell apikey
-hard-shell restart
+cd hard-shell
+./hard-shell apikey
+./hard-shell restart
 ```
 
 ### Connect
@@ -69,17 +73,18 @@ Open **http://localhost:18789** in your browser, or connect your IDE/editor to t
 
 ### Manage
 
-The installer adds a `hard-shell` command to your PATH:
+Run commands from your install directory:
 
 ```bash
-hard-shell status     # Check container health
-hard-shell logs -f    # Follow live logs
-hard-shell restart    # Restart the container
-hard-shell stop       # Stop the container
-hard-shell update     # Pull latest code, rebuild, and restart
-hard-shell preset     # View or change security preset
-hard-shell apikey     # Configure your LLM API key
-hard-shell uninstall  # Remove everything
+cd hard-shell
+./hard-shell status     # Check container health
+./hard-shell logs -f    # Follow live logs
+./hard-shell restart    # Restart the container
+./hard-shell stop       # Stop the container
+./hard-shell update     # Pull latest code, rebuild, and restart
+./hard-shell preset     # View or change security preset
+./hard-shell apikey     # Configure your LLM API key
+./hard-shell uninstall  # Remove everything
 ```
 
 ---
@@ -111,7 +116,7 @@ Hard Shell supports three security levels via the `TWEEK_PRESET` environment var
 | `cautious` | Balanced security with LLM review (default) | Daily development |
 | `paranoid` | Maximum security, manual approval required | Sensitive codebases |
 
-Change the preset in `~/.hard-shell/.env`:
+Change the preset in your install directory's `.env`:
 
 ```bash
 TWEEK_PRESET=paranoid
@@ -144,14 +149,19 @@ Hard Shell follows Docker security best practices:
 
 ### Files
 
-After install, `~/.hard-shell/` is a full clone of this repo plus your local `.env`:
+After install, `hard-shell/` in your current directory contains everything:
 
 ```
-~/.hard-shell/
+hard-shell/
 ├── .env                    # Your environment variables (API keys, preset) — not tracked
+├── hard-shell              # CLI script — run ./hard-shell <command>
 ├── Dockerfile              # Multi-stage Docker build
 ├── docker-compose.yml      # Hardened container configuration
 ├── install.sh              # The installer you ran
+├── data/                   # Persistent data (bind-mounted into container)
+│   ├── openclaw/           # OpenClaw config and state
+│   ├── tweek/              # Tweek config and scanner tokens
+│   └── workspace/          # Working files
 ├── config/
 │   ├── openclaw.json       # OpenClaw gateway settings
 │   └── tweek.yaml          # Tweek scanner settings

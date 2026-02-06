@@ -95,7 +95,7 @@ EOF
     echo "  5) Other provider"
     echo "  6) Skip (configure later)"
     echo ""
-    read -p "Choose your provider [1-6]: " -n 1 -r PROVIDER_CHOICE
+    read -p "Choose your provider [1-6]: " -n 1 -r PROVIDER_CHOICE < /dev/tty
     echo ""
 
     API_KEY_VAR=""
@@ -121,7 +121,7 @@ EOF
 
     if [ -n "$API_KEY_VAR" ]; then
         echo ""
-        read -p "Paste your API key: " -r API_KEY_VALUE
+        read -p "Paste your API key: " -r API_KEY_VALUE < /dev/tty
         if [ -n "$API_KEY_VALUE" ]; then
             echo "$API_KEY_VAR=$API_KEY_VALUE" >> "$ENV_FILE"
             ok "API key saved."

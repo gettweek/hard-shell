@@ -94,31 +94,20 @@ EOF
         echo "  2) OpenAI (GPT-4)"
         echo "  3) Google (Gemini)"
         echo "  4) xAI (Grok)"
-        echo "  5) Other provider"
-        echo "  6) Skip (configure later)"
+        echo "  5) Skip (configure later)"
         echo ""
-        echo -n "Choose your provider [1-6]: "
+        echo -n "Choose your provider [1-5]: "
         PROVIDER_CHOICE=""
         read PROVIDER_CHOICE < /dev/tty || true
         echo ""
 
         API_KEY_VAR=""
-        case "${PROVIDER_CHOICE:-6}" in
+        case "${PROVIDER_CHOICE:-5}" in
             1) API_KEY_VAR="ANTHROPIC_API_KEY" ; info "Selected: Anthropic" ;;
             2) API_KEY_VAR="OPENAI_API_KEY"    ; info "Selected: OpenAI" ;;
             3) API_KEY_VAR="GOOGLE_API_KEY"    ; info "Selected: Google" ;;
             4) API_KEY_VAR="XAI_API_KEY"       ; info "Selected: xAI (Grok)" ;;
-            5) info "To configure another provider, add its API key to your .env file:"
-               info ""
-               info "  echo \"PROVIDER_API_KEY=your-key\" >> $ENV_FILE"
-               info "  hard-shell restart"
-               info ""
-               info "OpenClaw supports any OpenAI-compatible API. Set the base URL"
-               info "and key in ~/.hard-shell/config/openclaw.json under the"
-               info "\"providers\" section. See https://github.com/openclaw/openclaw"
-               info "for full provider documentation."
-               ;;
-            6|*) info "Skipping API key setup. You can add it later:" ;
+            5|*) info "Skipping API key setup. You can add it later:" ;
                  info "  hard-shell apikey" ;
                  info "  hard-shell restart" ;;
         esac

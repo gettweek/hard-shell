@@ -56,12 +56,11 @@ docker compose up -d
 
 ### Configure your API key
 
-```bash
-# Add your API key to the environment file
-echo "ANTHROPIC_API_KEY=sk-ant-..." >> ~/.hard-shell/.env
+The installer prompts for your API key during setup. If you skipped it or need to change it:
 
-# Restart to apply
-cd ~/.hard-shell && docker compose restart
+```bash
+hard-shell apikey
+hard-shell restart
 ```
 
 ### Connect
@@ -79,6 +78,7 @@ hard-shell restart    # Restart the container
 hard-shell stop       # Stop the container
 hard-shell update     # Pull latest code, rebuild, and restart
 hard-shell preset     # View or change security preset
+hard-shell apikey     # Configure your LLM API key
 hard-shell uninstall  # Remove everything
 ```
 

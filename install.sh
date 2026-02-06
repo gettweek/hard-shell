@@ -72,7 +72,7 @@ else
     git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# --- Generate gateway token if not set ---
+# --- Generate gateway token and configure API key ---
 ENV_FILE="$INSTALL_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
     GATEWAY_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
@@ -83,6 +83,41 @@ OPENCLAW_GATEWAY_TOKEN=$GATEWAY_TOKEN
 EOF
     chmod 600 "$ENV_FILE"
     ok "Generated gateway token."
+
+    # --- Prompt for LLM API key ---
+    echo ""
+    info "OpenClaw needs an LLM API key to work."
+    echo ""
+    echo "  1) Anthropic (Claude)"
+    echo "  2) OpenAI (GPT-4)"
+    echo "  3) Google (Gemini)"
+    echo "  4) Skip (configure later)"
+    echo ""
+    read -p "Choose your provider [1-4]: " -n 1 -r PROVIDER_CHOICE
+    echo ""
+
+    API_KEY_VAR=""
+    case "${PROVIDER_CHOICE:-4}" in
+        1) API_KEY_VAR="ANTHROPIC_API_KEY" ; info "Selected: Anthropic" ;;
+        2) API_KEY_VAR="OPENAI_API_KEY"    ; info "Selected: OpenAI" ;;
+        3) API_KEY_VAR="GOOGLE_API_KEY"    ; info "Selected: Google" ;;
+        4|*) info "Skipping API key setup. You can add it later:" ;
+             info "  echo \"ANTHROPIC_API_KEY=your-key\" >> $ENV_FILE" ;
+             info "  hard-shell restart" ;;
+    esac
+
+    if [ -n "$API_KEY_VAR" ]; then
+        echo ""
+        read -p "Paste your API key: " -r API_KEY_VALUE
+        if [ -n "$API_KEY_VALUE" ]; then
+            echo "$API_KEY_VAR=$API_KEY_VALUE" >> "$ENV_FILE"
+            ok "API key saved."
+        else
+            warn "No key entered. Add it later:"
+            info "  echo \"$API_KEY_VAR=your-key\" >> $ENV_FILE"
+            info "  hard-shell restart"
+        fi
+    fi
 fi
 
 # --- Install the CLI ---

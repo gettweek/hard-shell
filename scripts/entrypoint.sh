@@ -160,12 +160,29 @@ if [ -d "$HOME/.openclaw/credentials" ]; then
 fi
 
 # --- Determine gateway bind mode ---
-# Priority: env var override > Tailscale detection > loopback (safest default)
+# Priority: env var override > Docker detection > Tailscale detection > loopback (safest default)
+#
+# CRITICAL: Inside Docker, the gateway must bind 0.0.0.0 (lan) because Docker's
+# bridge network delivers host traffic via 172.18.0.x, not 127.0.0.1.
+# Binding loopback inside the container silently rejects all connections.
+# This is safe because docker-compose.yml restricts the host-side port to
+# 127.0.0.1 — the real security boundary is Docker's port mapping, not the
+# gateway's bind address.
 BIND_MODE="${OPENCLAW_BIND_MODE:-}"
 TAILSCALE_AVAILABLE=false
+IN_DOCKER=false
+
+if [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null; then
+    IN_DOCKER=true
+fi
 
 if [ -z "$BIND_MODE" ]; then
-    if command -v tailscale &> /dev/null && tailscale status &> /dev/null; then
+    if [ "$IN_DOCKER" = true ]; then
+        # Inside Docker: must bind lan (0.0.0.0) for Docker port forwarding to work.
+        # Host-side security is enforced by docker-compose.yml port mapping (127.0.0.1:port:port).
+        BIND_MODE="lan"
+        log_json INFO entrypoint "Running inside Docker — binding lan (host restricts to 127.0.0.1)"
+    elif command -v tailscale &> /dev/null && tailscale status &> /dev/null; then
         TAILSCALE_AVAILABLE=true
         BIND_MODE="loopback"
         TAILSCALE_IP=$(tailscale ip -4 2>/dev/null || echo "")
@@ -176,17 +193,20 @@ if [ -z "$BIND_MODE" ]; then
     fi
 fi
 
-# Determine allowInsecureAuth based on bind mode
-# loopback = safe (localhost only, no network exposure) → allow insecure auth
-# lan = exposed to network → require secure auth (HTTPS/device pairing)
+# Determine allowInsecureAuth based on bind mode and environment
+# loopback = safe (localhost only) → allow insecure auth
+# lan inside Docker = safe (docker-compose restricts host to 127.0.0.1) → allow insecure auth
+# lan outside Docker = exposed to network → require secure auth (HTTPS/device pairing)
 if [ "$BIND_MODE" = "loopback" ]; then
+    ALLOW_INSECURE_AUTH=true
+elif [ "$BIND_MODE" = "lan" ] && [ "$IN_DOCKER" = true ]; then
     ALLOW_INSECURE_AUTH=true
 else
     ALLOW_INSECURE_AUTH=false
 fi
 
-log_json INFO entrypoint "Gateway bind mode resolved" "{\"bind\":\"$BIND_MODE\",\"tailscale\":$TAILSCALE_AVAILABLE,\"insecure_auth\":$ALLOW_INSECURE_AUTH}"
-audit_log bind_mode "{\"bind\":\"$BIND_MODE\",\"tailscale\":$TAILSCALE_AVAILABLE,\"insecure_auth\":$ALLOW_INSECURE_AUTH}"
+log_json INFO entrypoint "Gateway bind mode resolved" "{\"bind\":\"$BIND_MODE\",\"in_docker\":$IN_DOCKER,\"tailscale\":$TAILSCALE_AVAILABLE,\"insecure_auth\":$ALLOW_INSECURE_AUTH}"
+audit_log bind_mode "{\"bind\":\"$BIND_MODE\",\"in_docker\":$IN_DOCKER,\"tailscale\":$TAILSCALE_AVAILABLE,\"insecure_auth\":$ALLOW_INSECURE_AUTH}"
 
 # --- Detect API key and configure LLM provider/model ---
 OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"

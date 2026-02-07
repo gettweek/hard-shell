@@ -182,8 +182,8 @@ class TestSecurityHardening:
         if output != "nodir":
             assert output == "700", f"Expected credentials dir to be 700, got {output}"
 
-    def test_default_bind_is_loopback(self):
-        """entrypoint.sh should default to loopback binding."""
+    def test_default_bind_is_loopback_outside_docker(self):
+        """entrypoint.sh should default to loopback when not in Docker."""
         import os
         entrypoint = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -191,8 +191,37 @@ class TestSecurityHardening:
         )
         with open(entrypoint) as f:
             content = f.read()
-        # The default (when OPENCLAW_BIND_MODE is empty) should resolve to loopback
+        # The non-Docker fallback should resolve to loopback
         assert 'BIND_MODE="loopback"' in content, "Default bind mode should be loopback"
+
+    def test_docker_detection_forces_lan(self):
+        """entrypoint.sh should detect Docker and force --bind lan."""
+        import os
+        entrypoint = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "scripts", "entrypoint.sh",
+        )
+        with open(entrypoint) as f:
+            content = f.read()
+        assert '/.dockerenv' in content, "Should detect /.dockerenv for Docker"
+        assert 'IN_DOCKER=true' in content, "Should set IN_DOCKER flag"
+        # Inside Docker, default should be lan (so Docker port forwarding works)
+        assert 'BIND_MODE="lan"' in content, "Docker default should be lan"
+
+    def test_bind_mode_lan_in_running_container(self, hardened_container):
+        """Inside Docker, the gateway should bind lan for port forwarding to work."""
+        import time
+        time.sleep(10)  # Give entrypoint time to complete
+        result = _docker(
+            "exec", hardened_container,
+            "cat", "/home/node/logs/hard-shell.log",
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # The bind_mode log line should show "lan" inside Docker
+            assert '"bind":"lan"' in result.stdout or '"bind": "lan"' in result.stdout, (
+                "Inside Docker, bind mode should resolve to lan"
+            )
 
     def test_default_config_secure(self):
         """config/openclaw.json should default to loopback and insecure auth disabled."""

@@ -170,9 +170,9 @@ Hard Shell follows Docker security best practices:
 - **Dropped capabilities** — All Linux capabilities removed
 - **No privilege escalation** — `no-new-privileges` enforced
 - **Resource limits** — Memory (2GB) and PID limits prevent resource exhaustion
-- **Localhost binding** — Gateway only accessible from 127.0.0.1
-- **Loopback by default** — Gateway binds to loopback; use `OPENCLAW_BIND_MODE=lan` only if needed
-- **Secure auth** — `allowInsecureAuth` disabled by default; auto-enabled only for loopback
+- **Localhost binding** — Gateway only accessible from 127.0.0.1 on the host (Docker port mapping)
+- **Smart bind detection** — Inside Docker, gateway binds `0.0.0.0` (required for Docker port forwarding) while Docker itself restricts host access to `127.0.0.1`. Outside Docker (bare metal), defaults to loopback. Override with `OPENCLAW_BIND_MODE`.
+- **Secure auth** — `allowInsecureAuth` disabled by default; auto-enabled when running inside Docker (safe — host port is localhost-only) or when explicitly set to loopback
 - **Hardened permissions** — `.openclaw/`, `.tweek/`, and `credentials/` dirs are 700
 - **Post-startup audit** — `openclaw doctor --fix` and `openclaw security audit --deep` run at every boot
 - **Tailscale auto-detection** — If Tailscale is available in the container, binding adapts automatically
@@ -235,7 +235,7 @@ networks:
 |----------|---------|-------------|
 | `TWEEK_PRESET` | `cautious` | Security preset (`trusted`, `cautious`, `paranoid`) |
 | `OPENCLAW_GATEWAY_PORT` | `18789` | Gateway HTTP port |
-| `OPENCLAW_BIND_MODE` | auto-detect | Gateway bind mode (`loopback` or `lan`). Defaults to loopback; auto-detects Tailscale. |
+| `OPENCLAW_BIND_MODE` | auto-detect | Gateway bind mode (`loopback` or `lan`). Inside Docker: defaults to `lan` (Docker port mapping provides host-side security). Outside Docker: defaults to `loopback`; auto-detects Tailscale. |
 | `ANTHROPIC_API_KEY` | — | Your Anthropic API key |
 
 ### Files

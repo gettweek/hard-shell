@@ -4,6 +4,8 @@
 
 Hard Shell bundles OpenClaw — the open-source AI coding assistant — with [Tweek](https://github.com/gettweek/tweek), a security layer that screens every tool call for dangerous patterns before execution. One command to install, zero configuration required.
 
+> **Note:** Hard Shell is purpose-built for OpenClaw. If you use a different AI coding assistant (Claude Code, Cursor, Windsurf, Cline, etc.), use **[Tweek](https://github.com/gettweek/tweek)** directly — it works with any assistant, not just OpenClaw.
+
 ---
 
 ## Why Hard Shell?
@@ -311,17 +313,20 @@ Tweek works by intercepting every tool call an AI agent makes — shell commands
 
 ### Hard Shell vs Tweek Standalone
 
-Tweek can run standalone on any machine — it doesn't require Docker or Hard Shell. Hard Shell is the **batteries-included distribution** that bundles Tweek with OpenClaw inside a hardened container, adding infrastructure-level protections (read-only filesystem, dropped capabilities, network isolation) on top of Tweek's screening layer.
+Tweek can run standalone on any machine with any AI coding assistant — it doesn't require Docker or Hard Shell. Hard Shell is the **OpenClaw-specific, batteries-included distribution** that bundles Tweek with OpenClaw inside a hardened container, adding infrastructure-level protections (read-only filesystem, dropped capabilities, network isolation) on top of Tweek's screening layer.
 
 | | Hard Shell | Tweek Standalone |
 |---|---|---|
+| **AI assistant** | OpenClaw only | Any (Claude Code, Cursor, Windsurf, Cline, OpenClaw, etc.) |
 | **Install** | One command, Docker-based | `pip install tweek` |
-| **Scope** | Full stack (AI assistant + security) | Security layer only |
+| **Scope** | Full stack (OpenClaw + security + hardened container) | Security layer only |
 | **Infrastructure hardening** | Read-only FS, no SSH, dropped caps, resource limits | Your responsibility |
 | **Config management** | Automatic, immutable after startup | Manual |
-| **Best for** | Production deployments, untrusted environments | Adding security to an existing setup |
+| **Best for** | OpenClaw production deployments, untrusted environments | Adding security to any existing AI coding setup |
 
-If you already run an AI coding assistant and want to add security screening, use **[Tweek](https://github.com/gettweek/tweek)** directly. If you want the whole stack pre-hardened and ready to go, use **Hard Shell**.
+**Using OpenClaw?** Hard Shell gives you the full hardened stack in one command.
+
+**Using something else?** Use **[Tweek](https://github.com/gettweek/tweek)** directly — it integrates with any AI coding assistant.
 
 For more on Tweek's architecture, threat model, and configuration: **[github.com/gettweek/tweek](https://github.com/gettweek/tweek)**
 

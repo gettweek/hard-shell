@@ -46,24 +46,36 @@ fi
 OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 MODEL=""
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    MODEL="anthropic:claude-sonnet-4-5-20250929"
+    MODEL="anthropic/claude-sonnet-4-5-20250929"
     echo "[hard-shell] Detected ANTHROPIC_API_KEY — using $MODEL"
 elif [ -n "${GOOGLE_API_KEY:-}" ]; then
-    MODEL="google:gemini-2.0-flash"
+    MODEL="google/gemini-2.0-flash"
     echo "[hard-shell] Detected GOOGLE_API_KEY — using $MODEL"
 elif [ -n "${OPENAI_API_KEY:-}" ]; then
-    MODEL="openai:gpt-4o"
+    MODEL="openai/gpt-4o"
     echo "[hard-shell] Detected OPENAI_API_KEY — using $MODEL"
 elif [ -n "${XAI_API_KEY:-}" ]; then
-    MODEL="xai:grok-3"
+    MODEL="xai/grok-3"
     echo "[hard-shell] Detected XAI_API_KEY — using $MODEL"
 else
     echo "[hard-shell] WARNING: No LLM API key found. Run './hard-shell apikey' on the host."
 fi
 
 if [ -n "$MODEL" ] && [ -f "$OPENCLAW_CONFIG" ]; then
+    # Determine provider and API key for auth profile
+    PROVIDER="${MODEL%%/*}"
+    AUTH_KEY=""
+    case "$PROVIDER" in
+        anthropic) AUTH_KEY="${ANTHROPIC_API_KEY:-}" ;;
+        google)    AUTH_KEY="${GOOGLE_API_KEY:-}" ;;
+        openai)    AUTH_KEY="${OPENAI_API_KEY:-}" ;;
+        xai)       AUTH_KEY="${XAI_API_KEY:-}" ;;
+    esac
+
     python3 -c "
-import json, sys
+import json, os
+
+# --- Update model in openclaw.json ---
 config_path = '$OPENCLAW_CONFIG'
 model = '$MODEL'
 with open(config_path) as f:
@@ -72,7 +84,29 @@ config.setdefault('agents', {}).setdefault('defaults', {}).setdefault('model', {
 with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
     f.write('\n')
-" 2>/dev/null && echo "[hard-shell] Model configured in openclaw.json" || echo "[hard-shell] WARNING: Could not update model config"
+
+# --- Create auth profile so OpenClaw can find the API key ---
+provider = '$PROVIDER'
+auth_key = '$AUTH_KEY'
+if auth_key:
+    agent_dir = os.path.expanduser('~/.openclaw/agents/main/agent')
+    os.makedirs(agent_dir, exist_ok=True)
+    auth_file = os.path.join(agent_dir, 'auth-profiles.json')
+    store = {
+        'version': 1,
+        'profiles': {
+            provider + '-env': {
+                'provider': provider,
+                'type': 'api-key',
+                'apiKey': auth_key
+            }
+        }
+    }
+    with open(auth_file, 'w') as f:
+        json.dump(store, f, indent=2)
+        f.write('\n')
+    os.chmod(auth_file, 0o600)
+" 2>/dev/null && echo "[hard-shell] Model and auth profile configured" || echo "[hard-shell] WARNING: Could not update model/auth config"
 fi
 
 # --- Generate scanner auth token if missing ---

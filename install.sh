@@ -25,10 +25,10 @@ fail()  { echo -e "${RED}[hard-shell]${NC} $*"; exit 1; }
 # Map API key variable name to OpenClaw model identifier
 model_for_provider() {
     case "$1" in
-        ANTHROPIC_API_KEY) echo "anthropic:claude-sonnet-4-5-20250929" ;;
-        OPENAI_API_KEY)    echo "openai:gpt-4o" ;;
-        GOOGLE_API_KEY)    echo "google:gemini-2.0-flash" ;;
-        XAI_API_KEY)       echo "xai:grok-3" ;;
+        ANTHROPIC_API_KEY) echo "anthropic/claude-sonnet-4-5-20250929" ;;
+        OPENAI_API_KEY)    echo "openai/gpt-4o" ;;
+        GOOGLE_API_KEY)    echo "google/gemini-2.0-flash" ;;
+        XAI_API_KEY)       echo "xai/grok-3" ;;
         *)                 echo "" ;;
     esac
 }
@@ -44,7 +44,10 @@ write_openclaw_config() {
   "gateway": {
     "port": 18789,
     "bind": "lan",
-    "mode": "local"
+    "mode": "local",
+    "controlUi": {
+      "allowInsecureAuth": true
+    }
   },
   "agents": {
     "defaults": {

@@ -2,7 +2,10 @@
   "gateway": {
     "port": 18789,
     "bind": "lan",
-    "mode": "local"
+    "mode": "local",
+    "controlUi": {
+      "allowInsecureAuth": true
+    }
   },
   "agents": {
     "defaults": {

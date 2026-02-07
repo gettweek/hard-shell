@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hard-shell-logo.jpg" alt="Hard Shell Project" width="400">
+  <img src="assets/hard-shell-logo.png" alt="Hard Shell Project" width="400">
 </p>
 
 # Hard Shell

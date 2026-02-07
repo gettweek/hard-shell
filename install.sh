@@ -192,6 +192,29 @@ if [ ! -f "$INSTALL_DIR/data/openclaw/openclaw.json" ]; then
     write_openclaw_config ""
 fi
 
+# --- Install CLI symlink ---
+CLI_DIR="$HOME/.local/bin"
+mkdir -p "$CLI_DIR"
+ln -sf "$INSTALL_DIR/hard-shell" "$CLI_DIR/hard-shell"
+info "Symlinked: $CLI_DIR/hard-shell → $INSTALL_DIR/hard-shell"
+
+# Add ~/.local/bin to PATH if not already there
+if ! echo "$PATH" | grep -q "$CLI_DIR"; then
+    SHELL_NAME=$(basename "$SHELL")
+    case "$SHELL_NAME" in
+        zsh)  RC_FILE="$HOME/.zshrc" ;;
+        bash) RC_FILE="$HOME/.bashrc" ;;
+        *)    RC_FILE="" ;;
+    esac
+    if [ -n "$RC_FILE" ]; then
+        if ! grep -q '.local/bin' "$RC_FILE" 2>/dev/null; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$RC_FILE"
+            info "Added ~/.local/bin to PATH in $RC_FILE"
+        fi
+    fi
+    export PATH="$CLI_DIR:$PATH"
+fi
+
 # --- Build the image locally ---
 info "Building Docker image (this takes a few minutes on first run)..."
 cd "$INSTALL_DIR"
@@ -251,11 +274,12 @@ info "  Config:    $INSTALL_DIR/.env"
 info "  Data:      $INSTALL_DIR/data/"
 info "  Workspace: $INSTALL_DIR/data/workspace/"
 echo ""
-info "Commands (run from $INSTALL_DIR/):"
-info "  ./hard-shell status     # Check health"
-info "  ./hard-shell logs -f    # View logs"
-info "  ./hard-shell restart    # Restart"
-info "  ./hard-shell stop       # Stop"
-info "  ./hard-shell update     # Pull latest + rebuild"
-info "  ./hard-shell help       # All commands"
+info "Commands (run from anywhere):"
+info "  hard-shell status     # Check health"
+info "  hard-shell logs -f    # View logs"
+info "  hard-shell restart    # Restart"
+info "  hard-shell stop       # Stop"
+info "  hard-shell update     # Pull latest + rebuild"
+info "  hard-shell url        # Print gateway URL"
+info "  hard-shell help       # All commands"
 echo ""

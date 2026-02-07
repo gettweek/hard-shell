@@ -62,29 +62,28 @@ docker compose up -d
 The installer prompts for your API key during setup. If you skipped it or need to change it:
 
 ```bash
-cd hard-shell
-./hard-shell apikey
-./hard-shell restart
+hard-shell apikey
+hard-shell restart
 ```
 
 ### Connect
 
-Open **http://localhost:18789** in your browser, or connect your IDE/editor to the gateway.
+Open the gateway URL printed after install (includes auth token), or run `hard-shell url` to get it.
 
 ### Manage
 
-Run commands from your install directory:
+The installer adds `hard-shell` to your PATH — run from anywhere:
 
 ```bash
-cd hard-shell
-./hard-shell status     # Check container health
-./hard-shell logs -f    # Follow live logs
-./hard-shell restart    # Restart the container
-./hard-shell stop       # Stop the container
-./hard-shell update     # Pull latest code, rebuild, and restart
-./hard-shell preset     # View or change security preset
-./hard-shell apikey     # Configure your LLM API key
-./hard-shell uninstall  # Remove everything
+hard-shell status     # Check container health
+hard-shell logs -f    # Follow live logs
+hard-shell restart    # Restart the container
+hard-shell stop       # Stop the container
+hard-shell update     # Pull latest code, rebuild, and restart
+hard-shell preset     # View or change security preset
+hard-shell apikey     # Configure your LLM API key
+hard-shell url        # Print the gateway URL with auth token
+hard-shell uninstall  # Remove everything
 ```
 
 ---

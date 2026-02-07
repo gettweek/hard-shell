@@ -6,7 +6,14 @@ set -euo pipefail
 # Runs from the directory where this script lives (supports multiple instances).
 
 # Resolve the real directory of this script (follows symlinks)
-SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
+SOURCE="$0"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    # Handle relative symlinks
+    [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_PATH="$(cd "$(dirname "$SOURCE")" && pwd)"
 INSTALL_DIR="${HARD_SHELL_DIR:-$SCRIPT_PATH}"
 
 RED='\033[0;31m'

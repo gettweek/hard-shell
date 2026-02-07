@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/hard-shell-logo.jpg" alt="Hard Shell Project" width="400">
+</p>
+
 # Hard Shell
 
 **A security-hardened Docker distribution of [OpenClaw](https://github.com/openclaw/openclaw) with built-in AI safety guardrails.**

@@ -293,14 +293,37 @@ Hard Shell packages OpenClaw with security hardening so you get all the power wi
 
 ## What is Tweek?
 
-[Tweek](https://github.com/gettweek/tweek) is an open-source security tool for AI coding assistants. It provides:
+**[Tweek](https://github.com/gettweek/tweek)** is an open-source security scanner for AI coding assistants. If Hard Shell is the armored vehicle, Tweek is the weapons system inside it.
 
-- **Tool Screening** — Block dangerous commands before execution
-- **Output Scanning** — Detect credential leakage in responses
-- **Skill Guard** — Scan third-party skills/plugins before installation
-- **Session Analysis** — Detect multi-step attack patterns
+Tweek works by intercepting every tool call an AI agent makes — shell commands, file writes, web requests — and running them through a multi-layer screening pipeline before they execute. It's designed to catch both known attack patterns (credential theft, reverse shells) and novel threats (obfuscated payloads, multi-step attack chains).
 
-Tweek integrates with OpenClaw via a plugin that registers hooks into the gateway lifecycle.
+### Tweek's Security Layers
+
+| Layer | What It Does | Speed |
+|-------|-------------|-------|
+| **Pattern Matching** | Regex-based detection of known dangerous commands (exfiltration, credential access, destructive ops) | <1ms |
+| **Family Analysis** | Groups related patterns into threat families (e.g., `exfiltration`, `persistence`, `privilege_escalation`) for correlated detection | <1ms |
+| **Sandboxed Execution** | Runs commands in a restricted sandbox to observe behavior before allowing real execution | ~50ms |
+| **LLM Semantic Review** | Uses an LLM to evaluate whether a command is dangerous in context (catches novel attacks that patterns miss) | ~200ms |
+| **Skill Guard** | Scans third-party skills and plugins for red flags (external downloads, obfuscated code, persistence mechanisms) before installation | <10ms |
+| **Output Scanning** | Monitors AI responses for leaked credentials, API keys, and sensitive data | <5ms |
+| **Session Analysis** | Tracks patterns across an entire session to detect multi-step attack chains that look innocent individually | continuous |
+
+### Hard Shell vs Tweek Standalone
+
+Tweek can run standalone on any machine — it doesn't require Docker or Hard Shell. Hard Shell is the **batteries-included distribution** that bundles Tweek with OpenClaw inside a hardened container, adding infrastructure-level protections (read-only filesystem, dropped capabilities, network isolation) on top of Tweek's screening layer.
+
+| | Hard Shell | Tweek Standalone |
+|---|---|---|
+| **Install** | One command, Docker-based | `pip install tweek` |
+| **Scope** | Full stack (AI assistant + security) | Security layer only |
+| **Infrastructure hardening** | Read-only FS, no SSH, dropped caps, resource limits | Your responsibility |
+| **Config management** | Automatic, immutable after startup | Manual |
+| **Best for** | Production deployments, untrusted environments | Adding security to an existing setup |
+
+If you already run an AI coding assistant and want to add security screening, use **[Tweek](https://github.com/gettweek/tweek)** directly. If you want the whole stack pre-hardened and ready to go, use **Hard Shell**.
+
+For more on Tweek's architecture, threat model, and configuration: **[github.com/gettweek/tweek](https://github.com/gettweek/tweek)**
 
 ---
 

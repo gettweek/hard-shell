@@ -2,18 +2,129 @@
 set -euo pipefail
 
 # Hard Shell Entrypoint
-# Starts Tweek scanner server, then OpenClaw gateway with plugin
+# Starts Tweek scanner server, then OpenClaw gateway with plugin.
+# All output is structured JSONL to /home/node/logs/ and human-readable to stdout.
 
 SCANNER_PORT="${TWEEK_SCANNER_PORT:-9878}"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
 TWEEK_PRESET="${TWEEK_PRESET:-cautious}"
+LOG_DIR="/home/node/logs"
+APP_LOG="$LOG_DIR/hard-shell.log"
+AUDIT_LOG="$LOG_DIR/audit.log"
+MAX_LOG_SIZE=$((10 * 1024 * 1024))  # 10MB
+MAX_ROTATED=3
 
 SCANNER_PID=""
 GATEWAY_PID=""
+BOOT_START=$(date +%s%3N)
+
+# =============================================================================
+# Logging helpers
+# =============================================================================
+
+# log_json LEVEL COMPONENT MESSAGE [EXTRA_JSON]
+# Writes structured JSONL to APP_LOG and human-readable to stdout.
+log_json() {
+    local level="$1" component="$2" msg="$3" extra="${4:-}"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Build JSON line
+    local json="{\"ts\":\"$ts\",\"level\":\"$level\",\"component\":\"$component\",\"msg\":\"$msg\""
+    if [ -n "$extra" ]; then
+        json="$json,\"extra\":$extra"
+    fi
+    json="$json}"
+
+    # Append to log file (if directory exists)
+    if [ -d "$LOG_DIR" ]; then
+        echo "$json" >> "$APP_LOG"
+    fi
+
+    # Human-readable stdout
+    echo "[hard-shell] [$level] $msg"
+}
+
+# audit_log EVENT [DETAIL_JSON]
+# Append-only security audit trail. Never rotated.
+audit_log() {
+    local event="$1" detail="${2:-"{}"}"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    local json="{\"ts\":\"$ts\",\"event\":\"$event\",\"detail\":$detail}"
+
+    if [ -d "$LOG_DIR" ]; then
+        echo "$json" >> "$AUDIT_LOG"
+    fi
+
+    # Also emit to structured app log
+    log_json INFO audit "$event" "$detail"
+}
+
+# mask_sensitive VALUE
+# Keeps first 4 chars, masks the rest. Returns masked string on stdout.
+mask_sensitive() {
+    local val="$1"
+    if [ ${#val} -le 4 ]; then
+        echo "***REDACTED***"
+    else
+        echo "${val:0:4}***REDACTED***"
+    fi
+}
+
+# rotate_logs
+# Rotate APP_LOG if it exceeds MAX_LOG_SIZE. Keep up to MAX_ROTATED old files.
+# Audit log is never rotated (append-only security requirement).
+rotate_logs() {
+    if [ ! -f "$APP_LOG" ]; then
+        return
+    fi
+
+    local size
+    size=$(stat -c%s "$APP_LOG" 2>/dev/null || stat -f%z "$APP_LOG" 2>/dev/null || echo 0)
+
+    if [ "$size" -gt "$MAX_LOG_SIZE" ]; then
+        log_json INFO entrypoint "Rotating app log" "{\"size_bytes\":$size}"
+
+        # Shift existing rotated files
+        local i=$MAX_ROTATED
+        while [ "$i" -gt 1 ]; do
+            local prev=$((i - 1))
+            if [ -f "$APP_LOG.$prev" ]; then
+                mv "$APP_LOG.$prev" "$APP_LOG.$i"
+            fi
+            i=$prev
+        done
+
+        mv "$APP_LOG" "$APP_LOG.1"
+        # Create fresh log file
+        : > "$APP_LOG"
+    fi
+
+    # Warn if audit log is very large (> 50MB) but never rotate it
+    if [ -f "$AUDIT_LOG" ]; then
+        local audit_size
+        audit_size=$(stat -c%s "$AUDIT_LOG" 2>/dev/null || stat -f%z "$AUDIT_LOG" 2>/dev/null || echo 0)
+        if [ "$audit_size" -gt $((50 * 1024 * 1024)) ]; then
+            log_json WARN entrypoint "Audit log is large — consider archiving" "{\"size_bytes\":$audit_size}"
+        fi
+    fi
+}
+
+# =============================================================================
+# Startup
+# =============================================================================
+
+# Rotate logs before writing anything new
+rotate_logs
+
+audit_log startup "{\"preset\":\"$TWEEK_PRESET\",\"scanner_port\":$SCANNER_PORT,\"gateway_port\":$GATEWAY_PORT}"
+log_json INFO entrypoint "Hard Shell starting" "{\"preset\":\"$TWEEK_PRESET\"}"
 
 # --- Graceful shutdown ---
 cleanup() {
-    echo "[hard-shell] Shutting down..."
+    log_json INFO entrypoint "Shutting down..."
     if [ -n "$GATEWAY_PID" ] && kill -0 "$GATEWAY_PID" 2>/dev/null; then
         kill -TERM "$GATEWAY_PID"
         wait "$GATEWAY_PID" 2>/dev/null || true
@@ -22,47 +133,45 @@ cleanup() {
         kill -TERM "$SCANNER_PID"
         wait "$SCANNER_PID" 2>/dev/null || true
     fi
-    echo "[hard-shell] Stopped."
+    audit_log shutdown "{}"
+    log_json INFO entrypoint "Stopped."
     exit 0
 }
 trap cleanup SIGTERM SIGINT
 
 # --- Apply default config if first run ---
 if [ ! -f "$HOME/.openclaw/openclaw.json" ]; then
-    echo "[hard-shell] First run — applying default OpenClaw + Tweek config..."
+    log_json INFO entrypoint "First run — applying default OpenClaw + Tweek config"
     mkdir -p "$HOME/.openclaw"
     cp /opt/hard-shell/config/openclaw.json "$HOME/.openclaw/openclaw.json"
 fi
 
 if [ ! -f "$HOME/.tweek/config.yaml" ]; then
-    echo "[hard-shell] Applying default Tweek config (preset: $TWEEK_PRESET)..."
+    log_json INFO entrypoint "Applying default Tweek config" "{\"preset\":\"$TWEEK_PRESET\"}"
     mkdir -p "$HOME/.tweek"
     cp /opt/hard-shell/config/tweek.yaml "$HOME/.tweek/config.yaml"
 fi
 
 # --- Detect API key and configure LLM provider/model ---
-# OpenClaw needs to know which provider and model to use.
-# Detect from env vars and write into the config.
 OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 MODEL=""
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     MODEL="anthropic/claude-sonnet-4-5-20250929"
-    echo "[hard-shell] Detected ANTHROPIC_API_KEY — using $MODEL"
+    log_json INFO entrypoint "API key detected" "{\"provider\":\"anthropic\",\"model\":\"$MODEL\"}"
 elif [ -n "${GOOGLE_API_KEY:-}" ]; then
     MODEL="google/gemini-2.0-flash"
-    echo "[hard-shell] Detected GOOGLE_API_KEY — using $MODEL"
+    log_json INFO entrypoint "API key detected" "{\"provider\":\"google\",\"model\":\"$MODEL\"}"
 elif [ -n "${OPENAI_API_KEY:-}" ]; then
     MODEL="openai/gpt-4o"
-    echo "[hard-shell] Detected OPENAI_API_KEY — using $MODEL"
+    log_json INFO entrypoint "API key detected" "{\"provider\":\"openai\",\"model\":\"$MODEL\"}"
 elif [ -n "${XAI_API_KEY:-}" ]; then
     MODEL="xai/grok-3"
-    echo "[hard-shell] Detected XAI_API_KEY — using $MODEL"
+    log_json INFO entrypoint "API key detected" "{\"provider\":\"xai\",\"model\":\"$MODEL\"}"
 else
-    echo "[hard-shell] WARNING: No LLM API key found. Run './hard-shell apikey' on the host."
+    log_json WARN entrypoint "No LLM API key found — run 'hard-shell apikey' on the host"
 fi
 
 if [ -n "$MODEL" ] && [ -f "$OPENCLAW_CONFIG" ]; then
-    # Determine provider and API key for auth profile
     PROVIDER="${MODEL%%/*}"
     AUTH_KEY=""
     case "$PROVIDER" in
@@ -106,72 +215,93 @@ if auth_key:
         json.dump(store, f, indent=2)
         f.write('\n')
     os.chmod(auth_file, 0o600)
-" 2>/dev/null && echo "[hard-shell] Model and auth profile configured" || echo "[hard-shell] WARNING: Could not update model/auth config"
+" 2>/dev/null && log_json INFO entrypoint "Model and auth profile configured" "{\"provider\":\"$PROVIDER\"}" \
+             || log_json WARN entrypoint "Could not update model/auth config"
+    audit_log config_change "{\"provider\":\"$PROVIDER\",\"model\":\"$MODEL\"}"
 fi
 
 # --- Generate scanner auth token if missing ---
 if [ ! -f "$HOME/.tweek/.scanner_token" ]; then
     python3 -c "import secrets; print(secrets.token_urlsafe(32))" > "$HOME/.tweek/.scanner_token"
     chmod 600 "$HOME/.tweek/.scanner_token"
-    echo "[hard-shell] Generated scanner auth token."
+    audit_log token_generated "{\"type\":\"scanner\"}"
+    log_json INFO entrypoint "Generated scanner auth token"
 fi
 
 # --- Generate gateway auth token if not provided ---
 if [ -z "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
     export OPENCLAW_GATEWAY_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-    echo "[hard-shell] Generated gateway token (not logged for security)."
+    audit_log token_generated "{\"type\":\"gateway\",\"source\":\"auto\"}"
+    log_json INFO entrypoint "Generated gateway token (value not logged for security)"
 fi
 
 # --- Start Tweek scanner server ---
-# Note: The scanner module uses an obfuscated __main__ guard, so we call
-# run_server() directly instead of using python3 -m
-echo "[hard-shell] Starting Tweek scanner server on port $SCANNER_PORT..."
+SCANNER_START=$(date +%s%3N)
+log_json INFO scanner "Starting Tweek scanner server" "{\"port\":$SCANNER_PORT}"
 python3 -c "from tweek.integrations.openclaw_server import run_server; run_server($SCANNER_PORT)" &
 SCANNER_PID=$!
 
 # Wait for scanner to be healthy
-echo "[hard-shell] Waiting for scanner server..."
+log_json INFO scanner "Waiting for scanner server..."
 for i in $(seq 1 30); do
     if curl -sf "http://127.0.0.1:$SCANNER_PORT/health" > /dev/null 2>&1; then
-        echo "[hard-shell] Scanner server ready."
+        SCANNER_READY=$(date +%s%3N)
+        SCANNER_MS=$(( SCANNER_READY - SCANNER_START ))
+        log_json INFO scanner "Scanner server ready" "{\"startup_ms\":$SCANNER_MS}"
         break
     fi
     if ! kill -0 "$SCANNER_PID" 2>/dev/null; then
-        echo "[hard-shell] ERROR: Scanner server failed to start."
+        log_json ERROR scanner "Scanner server failed to start"
+        audit_log error "{\"component\":\"scanner\",\"reason\":\"process_exited\"}"
         exit 1
     fi
     sleep 1
 done
 
 if ! curl -sf "http://127.0.0.1:$SCANNER_PORT/health" > /dev/null 2>&1; then
-    echo "[hard-shell] ERROR: Scanner server did not become healthy in 30s."
+    log_json ERROR scanner "Scanner server did not become healthy in 30s"
+    audit_log error "{\"component\":\"scanner\",\"reason\":\"health_timeout\"}"
     exit 1
 fi
 
 # --- Start OpenClaw gateway ---
-echo "[hard-shell] Starting OpenClaw gateway on port $GATEWAY_PORT..."
+GATEWAY_START=$(date +%s%3N)
+log_json INFO gateway "Starting OpenClaw gateway" "{\"port\":$GATEWAY_PORT}"
 openclaw gateway --port "$GATEWAY_PORT" --token "$OPENCLAW_GATEWAY_TOKEN" --bind lan --allow-unconfigured &
 GATEWAY_PID=$!
 
 # Wait for gateway to be healthy
-echo "[hard-shell] Waiting for gateway..."
+log_json INFO gateway "Waiting for gateway..."
 for i in $(seq 1 30); do
     if curl -sf "http://127.0.0.1:$GATEWAY_PORT/health" > /dev/null 2>&1; then
-        echo "[hard-shell] Gateway ready."
+        GATEWAY_READY=$(date +%s%3N)
+        GATEWAY_MS=$(( GATEWAY_READY - GATEWAY_START ))
+        log_json INFO gateway "Gateway ready" "{\"startup_ms\":$GATEWAY_MS}"
         break
     fi
     if ! kill -0 "$GATEWAY_PID" 2>/dev/null; then
-        echo "[hard-shell] ERROR: Gateway failed to start."
+        log_json ERROR gateway "Gateway failed to start"
+        audit_log error "{\"component\":\"gateway\",\"reason\":\"process_exited\"}"
         exit 1
     fi
     sleep 1
 done
+
+# --- Startup complete ---
+BOOT_END=$(date +%s%3N)
+TOTAL_MS=$(( BOOT_END - BOOT_START ))
+SCANNER_ELAPSED=${SCANNER_MS:-0}
+GATEWAY_ELAPSED=${GATEWAY_MS:-0}
+
+log_json INFO entrypoint "Hard Shell is running" "{\"scanner_ms\":$SCANNER_ELAPSED,\"gateway_ms\":$GATEWAY_ELAPSED,\"total_ms\":$TOTAL_MS}"
+audit_log ready "{\"scanner_ms\":$SCANNER_ELAPSED,\"gateway_ms\":$GATEWAY_ELAPSED,\"total_ms\":$TOTAL_MS,\"preset\":\"$TWEEK_PRESET\"}"
 
 echo "[hard-shell] ================================================"
 echo "[hard-shell] Hard Shell is running."
 echo "[hard-shell]   Gateway:  http://127.0.0.1:$GATEWAY_PORT"
 echo "[hard-shell]   Scanner:  http://127.0.0.1:$SCANNER_PORT (internal)"
 echo "[hard-shell]   Preset:   $TWEEK_PRESET"
+echo "[hard-shell]   Startup:  ${TOTAL_MS}ms"
 echo "[hard-shell] ================================================"
 
 # Wait for either process to exit

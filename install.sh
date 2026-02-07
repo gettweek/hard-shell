@@ -119,7 +119,7 @@ else
 fi
 
 # --- Create data directories (bind-mounted into container) ---
-mkdir -p "$INSTALL_DIR/data/openclaw" "$INSTALL_DIR/data/tweek" "$INSTALL_DIR/data/workspace"
+mkdir -p "$INSTALL_DIR/data/openclaw" "$INSTALL_DIR/data/tweek" "$INSTALL_DIR/data/workspace" "$INSTALL_DIR/data/logs"
 info "Data directories: $INSTALL_DIR/data/"
 
 # --- Generate gateway token and configure API key ---

@@ -72,10 +72,10 @@ RUN chmod +x /opt/hard-shell/entrypoint.sh /opt/hard-shell/healthcheck.sh
 
 # Create non-root user directories with correct permissions
 RUN mkdir -p /home/node/.openclaw /home/node/.tweek /home/node/workspace \
-    /home/node/.cache \
+    /home/node/.cache /home/node/logs \
     && chown -R node:node /home/node \
     && chmod 700 /home/node/.openclaw /home/node/.tweek \
-    && chmod 755 /home/node/workspace
+    && chmod 755 /home/node/workspace /home/node/logs
 
 # Switch to non-root user
 USER node

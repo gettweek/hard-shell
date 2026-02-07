@@ -118,7 +118,84 @@ case "$cmd" in
         fi
         ;;
     logs)
-        docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" logs "${@:2}"
+        LOG_SUB="${2:-}"
+        LOG_DIR="$INSTALL_DIR/data/logs"
+        case "$LOG_SUB" in
+            app)
+                if [ ! -f "$LOG_DIR/hard-shell.log" ]; then
+                    fail "No app log found at $LOG_DIR/hard-shell.log"
+                fi
+                # Pass remaining args (e.g., -f for follow)
+                if [[ "${3:-}" == "-f" ]]; then
+                    tail -f "$LOG_DIR/hard-shell.log"
+                else
+                    tail -100 "$LOG_DIR/hard-shell.log"
+                fi
+                ;;
+            audit)
+                if [ ! -f "$LOG_DIR/audit.log" ]; then
+                    fail "No audit log found at $LOG_DIR/audit.log"
+                fi
+                if [[ "${3:-}" == "-f" ]]; then
+                    tail -f "$LOG_DIR/audit.log"
+                else
+                    tail -100 "$LOG_DIR/audit.log"
+                fi
+                ;;
+            search)
+                TERM="${3:-}"
+                if [ -z "$TERM" ]; then
+                    fail "Usage: hard-shell logs search <term>"
+                fi
+                if [ ! -d "$LOG_DIR" ]; then
+                    fail "No log directory at $LOG_DIR"
+                fi
+                grep -rn "$TERM" "$LOG_DIR/" 2>/dev/null || info "No matches found for: $TERM"
+                ;;
+            stats)
+                if [ ! -d "$LOG_DIR" ]; then
+                    fail "No log directory at $LOG_DIR"
+                fi
+                echo "Log directory: $LOG_DIR"
+                echo ""
+                # File sizes
+                for f in "$LOG_DIR"/*.log "$LOG_DIR"/*.log.*; do
+                    if [ -f "$f" ]; then
+                        SIZE=$(du -h "$f" 2>/dev/null | cut -f1)
+                        echo "  $(basename "$f"): $SIZE"
+                    fi
+                done
+                echo ""
+                # Last startup time from app log
+                if [ -f "$LOG_DIR/hard-shell.log" ]; then
+                    LAST_READY=$(grep '"msg":"Hard Shell is running"' "$LOG_DIR/hard-shell.log" 2>/dev/null | tail -1)
+                    if [ -n "$LAST_READY" ]; then
+                        TOTAL_MS=$(echo "$LAST_READY" | grep -o '"total_ms":[0-9]*' | cut -d: -f2)
+                        LAST_TS=$(echo "$LAST_READY" | grep -o '"ts":"[^"]*"' | cut -d'"' -f4)
+                        echo "  Last startup: $LAST_TS (${TOTAL_MS}ms)"
+                    fi
+                fi
+                # Recent errors
+                if [ -f "$LOG_DIR/hard-shell.log" ]; then
+                    ERROR_COUNT=$(grep -c '"level":"ERROR"' "$LOG_DIR/hard-shell.log" 2>/dev/null || echo "0")
+                    WARN_COUNT=$(grep -c '"level":"WARN"' "$LOG_DIR/hard-shell.log" 2>/dev/null || echo "0")
+                    echo "  Errors: $ERROR_COUNT  Warnings: $WARN_COUNT"
+                fi
+                # Audit event count
+                if [ -f "$LOG_DIR/audit.log" ]; then
+                    AUDIT_COUNT=$(wc -l < "$LOG_DIR/audit.log" 2>/dev/null || echo "0")
+                    echo "  Audit events: $AUDIT_COUNT"
+                fi
+                ;;
+            ""|"-f"|"--follow")
+                # Default: docker compose logs (backwards compatible)
+                docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" logs "${@:2}"
+                ;;
+            *)
+                # Pass through to docker compose logs (e.g., hard-shell logs --tail 50)
+                docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" logs "${@:2}"
+                ;;
+        esac
         ;;
     preset)
         PRESET="${2:-}"
@@ -220,6 +297,10 @@ case "$cmd" in
         echo "  update      Pull latest code, rebuild, and restart"
         echo "  status      Show container health and status"
         echo "  logs        View container logs (pass -f to follow)"
+        echo "  logs app    View structured app logs (pass -f to follow)"
+        echo "  logs audit  View security audit trail (pass -f to follow)"
+        echo "  logs search Search log files for a term"
+        echo "  logs stats  Show log summary (sizes, startup time, errors)"
         echo "  preset      View or change the security preset"
         echo "  apikey      Configure your LLM API key"
         echo "  url         Print the gateway URL (with auth token)"

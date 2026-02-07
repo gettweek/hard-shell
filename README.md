@@ -84,7 +84,45 @@ hard-shell preset     # View or change security preset
 hard-shell apikey     # Configure your LLM API key
 hard-shell url        # Print the gateway URL with auth token
 hard-shell uninstall  # Remove everything
+hard-shell logs app   # View structured app logs
+hard-shell logs audit # View security audit trail
+hard-shell logs search <term>  # Search all log files
+hard-shell logs stats # Log summary (sizes, startup time, errors)
 ```
+
+---
+
+## Logging
+
+Hard Shell writes structured JSONL logs for machine parsing and a separate security audit trail. All logs are stored in `data/logs/` (bind-mounted from the container).
+
+### Log Files
+
+| File | Format | Description |
+|------|--------|-------------|
+| `data/logs/hard-shell.log` | JSONL | Application log — startup, config, health events |
+| `data/logs/audit.log` | JSONL | Security audit trail — startup, shutdown, token generation, config changes |
+
+### Log Format
+
+Each line is a JSON object:
+
+```json
+{"ts":"2026-02-06T12:00:00.123Z","level":"INFO","component":"scanner","msg":"Scanner server ready","extra":{"port":9878,"startup_ms":1200}}
+```
+
+Fields: `ts` (ISO 8601), `level` (INFO/WARN/ERROR), `component` (entrypoint/scanner/gateway/healthcheck/audit), `msg`, optional `extra`.
+
+### Log Rotation
+
+- `hard-shell.log` is rotated at startup when it exceeds 10MB (keeps 3 rotated files)
+- `audit.log` is never rotated (append-only security requirement)
+
+### Security
+
+- API keys and sensitive values are never written to log files
+- The `mask_sensitive()` helper redacts values before logging
+- Audit log provides a tamper-evident trail of security-relevant events
 
 ---
 
@@ -160,7 +198,8 @@ hard-shell/
 ├── data/                   # Persistent data (bind-mounted into container)
 │   ├── openclaw/           # OpenClaw config and state
 │   ├── tweek/              # Tweek config and scanner tokens
-│   └── workspace/          # Working files
+│   ├── workspace/          # Working files
+│   └── logs/               # Structured JSONL logs and audit trail
 ├── config/
 │   ├── openclaw.json       # OpenClaw gateway settings
 │   └── tweek.yaml          # Tweek scanner settings

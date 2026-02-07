@@ -8,6 +8,7 @@ services:
       - ./data/openclaw:/home/node/.openclaw
       - ./data/tweek:/home/node/.tweek
       - ./data/workspace:/home/node/workspace
+      - ./data/logs:/home/node/logs
     environment:
       - TWEEK_PRESET=${TWEEK_PRESET:-cautious}
       - OPENCLAW_GATEWAY_PORT=18789

@@ -142,3 +142,22 @@ class TestImageSecurity:
         for tool in ["gcc", "make", "g++"]:
             result = docker_run(docker_image, "which", tool, check=False)
             assert result.returncode != 0, f"{tool} should not be in the runtime image"
+
+    def test_no_ssh_server(self, docker_image):
+        """No SSH server should be installed in the container."""
+        result = docker_run(docker_image, "which", "sshd", check=False)
+        assert result.returncode != 0, "sshd should not be in the runtime image"
+
+    def test_no_ssh_client(self, docker_image):
+        """No SSH client should be installed in the container."""
+        result = docker_run(docker_image, "which", "ssh", check=False)
+        assert result.returncode != 0, "ssh client should not be in the runtime image"
+
+    def test_no_ssh_dir(self, docker_image):
+        """No .ssh directory should exist for the node user."""
+        result = docker_run(
+            docker_image,
+            "test", "-d", "/home/node/.ssh",
+            check=False,
+        )
+        assert result.returncode != 0, "/home/node/.ssh should not exist"

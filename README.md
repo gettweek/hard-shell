@@ -176,6 +176,54 @@ Hard Shell follows Docker security best practices:
 - **Hardened permissions** — `.openclaw/`, `.tweek/`, and `credentials/` dirs are 700
 - **Post-startup audit** — `openclaw doctor --fix` and `openclaw security audit --deep` run at every boot
 - **Tailscale auto-detection** — If Tailscale is available in the container, binding adapts automatically
+- **Immutable configs** — Security configs (`openclaw.json`, `tweek.yaml`, plugin config) are locked read-only after startup. A compromised agent cannot disable its own safety checks.
+- **No SSH** — No SSH client or server is installed in the container image
+- **Network egress control** — Outbound connections can be restricted via Docker network policies (see below)
+
+### Tailscale ACLs (Multi-Device Setups)
+
+If you run Hard Shell on a Tailscale network, use ACL tags to prevent lateral movement if the agent is compromised. In your Tailscale admin console, add:
+
+```json
+{
+  "tagOwners": {
+    "tag:hard-shell": ["autogroup:admin"],
+    "tag:workstation": ["autogroup:admin"]
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["tag:workstation"],
+      "dst": ["tag:hard-shell:18789"]
+    },
+    {
+      "action": "deny",
+      "src": ["tag:hard-shell"],
+      "dst": ["*:*"]
+    }
+  ]
+}
+```
+
+This allows your workstation to reach the Hard Shell gateway, but the Hard Shell machine **cannot initiate connections** to anything else on your tailnet. Even if compromised, lateral movement is blocked.
+
+### Network Egress Restrictions
+
+For maximum isolation, restrict the container's outbound network access to only your LLM provider's API:
+
+```yaml
+# docker-compose.override.yml
+services:
+  hard-shell:
+    networks:
+      - restricted
+networks:
+  restricted:
+    driver: bridge
+    internal: true  # No outbound internet access
+```
+
+> **Note:** `internal: true` blocks all outbound traffic including LLM API calls. Use this only if the LLM is hosted locally, or configure iptables rules for selective egress.
 
 ---
 

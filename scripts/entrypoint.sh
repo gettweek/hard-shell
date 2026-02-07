@@ -294,6 +294,40 @@ if [ -z "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
     log_json INFO entrypoint "Generated gateway token (value not logged for security)"
 fi
 
+# --- Lock down security configs ---
+# Make config files read-only to raise the bar against a compromised agent
+# disabling its own safety checks. chmod 444 prevents naive modification;
+# a sophisticated attacker could chmod it back (owner can always chmod own files),
+# but the real defense is Tweek blocking chmod/sed/python commands that target
+# config paths. This is defense-in-depth, not a sole barrier.
+#
+# Additionally, store a SHA-256 fingerprint of each config file. The post-startup
+# security audit can detect tampering by comparing against these checksums.
+LOCKED_FILES=0
+CONFIG_HASHES=""
+for cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.tweek/config.yaml"; do
+    if [ -f "$cfg" ]; then
+        chmod 444 "$cfg" 2>/dev/null && LOCKED_FILES=$((LOCKED_FILES + 1))
+        # Record hash for tamper detection
+        HASH=$(sha256sum "$cfg" 2>/dev/null | cut -d' ' -f1 || echo "unknown")
+        CONFIG_HASHES="$CONFIG_HASHES\"$(basename "$cfg")\":\"$HASH\","
+    fi
+done
+# Lock the Tweek plugin config if it exists (on read-only root FS, this is belt-and-suspenders)
+if [ -f /usr/local/lib/node_modules/openclaw/extensions/tweek-security/openclaw.plugin.json ]; then
+    chmod 444 /usr/local/lib/node_modules/openclaw/extensions/tweek-security/openclaw.plugin.json 2>/dev/null && LOCKED_FILES=$((LOCKED_FILES + 1))
+fi
+# Write config hashes for post-startup tamper detection
+if [ -n "$CONFIG_HASHES" ]; then
+    CONFIG_HASHES="{${CONFIG_HASHES%,}}"
+else
+    CONFIG_HASHES="{}"
+fi
+echo "$CONFIG_HASHES" > "$HOME/.openclaw/.config_hashes" 2>/dev/null || true
+chmod 444 "$HOME/.openclaw/.config_hashes" 2>/dev/null || true
+log_json INFO entrypoint "Security configs locked (read-only)" "{\"files_locked\":$LOCKED_FILES,\"hashes\":$CONFIG_HASHES}"
+audit_log configs_locked "{\"files_locked\":$LOCKED_FILES,\"hashes\":$CONFIG_HASHES}"
+
 # --- Start Tweek scanner server ---
 SCANNER_START=$(date +%s%3N)
 log_json INFO scanner "Starting Tweek scanner server" "{\"port\":$SCANNER_PORT}"

@@ -176,3 +176,88 @@ class TestPostStartupSecurity:
             assert "security_audit" in result.stdout, (
                 "Audit log should contain security_audit event"
             )
+
+
+class TestConfigImmutability:
+    """Verify security configs are locked read-only after startup."""
+
+    def test_openclaw_config_is_readonly(self, running_container):
+        """openclaw.json should be read-only (444) after startup."""
+        if not running_container["healthy"]:
+            pytest.skip("Container not healthy")
+
+        from conftest import docker_exec
+        name = running_container["name"]
+
+        result = docker_exec(
+            name, "stat", "-c", "%a", "/home/node/.openclaw/openclaw.json",
+            check=False,
+        )
+        if result.returncode == 0:
+            perms = result.stdout.strip()
+            assert perms == "444", f"openclaw.json should be 444 (read-only), got {perms}"
+
+    def test_tweek_config_is_readonly(self, running_container):
+        """tweek config.yaml should be read-only (444) after startup."""
+        if not running_container["healthy"]:
+            pytest.skip("Container not healthy")
+
+        from conftest import docker_exec
+        name = running_container["name"]
+
+        result = docker_exec(
+            name, "stat", "-c", "%a", "/home/node/.tweek/config.yaml",
+            check=False,
+        )
+        if result.returncode == 0:
+            perms = result.stdout.strip()
+            assert perms == "444", f"tweek config.yaml should be 444 (read-only), got {perms}"
+
+    def test_config_hashes_recorded(self, running_container):
+        """Config fingerprints should be recorded for tamper detection."""
+        if not running_container["healthy"]:
+            pytest.skip("Container not healthy")
+
+        from conftest import docker_exec
+        name = running_container["name"]
+
+        result = docker_exec(
+            name,
+            "test", "-f", "/home/node/.openclaw/.config_hashes",
+            check=False,
+        )
+        assert result.returncode == 0, "Config hash file should exist for tamper detection"
+
+    def test_config_hashes_are_readonly(self, running_container):
+        """Config hash file itself should be read-only."""
+        if not running_container["healthy"]:
+            pytest.skip("Container not healthy")
+
+        from conftest import docker_exec
+        name = running_container["name"]
+
+        result = docker_exec(
+            name,
+            "stat", "-c", "%a", "/home/node/.openclaw/.config_hashes",
+            check=False,
+        )
+        if result.returncode == 0:
+            perms = result.stdout.strip()
+            assert perms == "444", f"Config hash file should be 444, got {perms}"
+
+    def test_configs_locked_in_audit_log(self, running_container):
+        """Audit log should contain a configs_locked event."""
+        if not running_container["healthy"]:
+            pytest.skip("Container not healthy")
+
+        from conftest import docker_exec
+        name = running_container["name"]
+
+        result = docker_exec(
+            name, "cat", "/home/node/logs/audit.log",
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            assert "configs_locked" in result.stdout, (
+                "Audit log should contain configs_locked event"
+            )

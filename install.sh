@@ -43,10 +43,10 @@ write_openclaw_config() {
 {
   "gateway": {
     "port": 18789,
-    "bind": "lan",
+    "bind": "loopback",
     "mode": "local",
     "controlUi": {
-      "allowInsecureAuth": true
+      "allowInsecureAuth": false
     }
   },
   "agents": {
@@ -245,6 +245,15 @@ done
 if [ "$HEALTHY" = false ]; then
     warn "Container did not become healthy within 120s. Check logs:"
     warn "  cd $INSTALL_DIR && docker compose logs"
+fi
+
+# --- Post-install security audit ---
+if [ "$HEALTHY" = true ]; then
+    info "Running security audit..."
+    docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" exec -T hard-shell openclaw security audit --deep 2>&1 | while IFS= read -r line; do
+        [ -n "$line" ] && info "  $line"
+    done || warn "Security audit could not run (container may still be initializing)."
+    echo ""
 fi
 
 # --- Build tokenized gateway URL ---

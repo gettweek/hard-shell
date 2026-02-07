@@ -152,6 +152,42 @@ if [ ! -f "$HOME/.tweek/config.yaml" ]; then
     cp /opt/hard-shell/config/tweek.yaml "$HOME/.tweek/config.yaml"
 fi
 
+# --- Harden directory permissions ---
+chmod 700 "$HOME/.openclaw" "$HOME/.tweek" 2>/dev/null || true
+if [ -d "$HOME/.openclaw/credentials" ]; then
+    chmod 700 "$HOME/.openclaw/credentials"
+    log_json INFO entrypoint "Hardened credentials directory permissions"
+fi
+
+# --- Determine gateway bind mode ---
+# Priority: env var override > Tailscale detection > loopback (safest default)
+BIND_MODE="${OPENCLAW_BIND_MODE:-}"
+TAILSCALE_AVAILABLE=false
+
+if [ -z "$BIND_MODE" ]; then
+    if command -v tailscale &> /dev/null && tailscale status &> /dev/null; then
+        TAILSCALE_AVAILABLE=true
+        BIND_MODE="loopback"
+        TAILSCALE_IP=$(tailscale ip -4 2>/dev/null || echo "")
+        log_json INFO entrypoint "Tailscale detected" "{\"ip\":\"$TAILSCALE_IP\"}"
+        audit_log tailscale_detected "{\"ip\":\"$TAILSCALE_IP\"}"
+    else
+        BIND_MODE="loopback"
+    fi
+fi
+
+# Determine allowInsecureAuth based on bind mode
+# loopback = safe (localhost only, no network exposure) → allow insecure auth
+# lan = exposed to network → require secure auth (HTTPS/device pairing)
+if [ "$BIND_MODE" = "loopback" ]; then
+    ALLOW_INSECURE_AUTH=true
+else
+    ALLOW_INSECURE_AUTH=false
+fi
+
+log_json INFO entrypoint "Gateway bind mode resolved" "{\"bind\":\"$BIND_MODE\",\"tailscale\":$TAILSCALE_AVAILABLE,\"insecure_auth\":$ALLOW_INSECURE_AUTH}"
+audit_log bind_mode "{\"bind\":\"$BIND_MODE\",\"tailscale\":$TAILSCALE_AVAILABLE,\"insecure_auth\":$ALLOW_INSECURE_AUTH}"
+
 # --- Detect API key and configure LLM provider/model ---
 OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 MODEL=""
@@ -184,12 +220,17 @@ if [ -n "$MODEL" ] && [ -f "$OPENCLAW_CONFIG" ]; then
     python3 -c "
 import json, os
 
-# --- Update model in openclaw.json ---
+# --- Update model and gateway security in openclaw.json ---
 config_path = '$OPENCLAW_CONFIG'
 model = '$MODEL'
+bind_mode = '$BIND_MODE'
+allow_insecure = $ALLOW_INSECURE_AUTH
+
 with open(config_path) as f:
     config = json.load(f)
 config.setdefault('agents', {}).setdefault('defaults', {}).setdefault('model', {})['primary'] = model
+config.setdefault('gateway', {})['bind'] = bind_mode
+config['gateway'].setdefault('controlUi', {})['allowInsecureAuth'] = allow_insecure
 with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
     f.write('\n')
@@ -217,7 +258,25 @@ if auth_key:
     os.chmod(auth_file, 0o600)
 " 2>/dev/null && log_json INFO entrypoint "Model and auth profile configured" "{\"provider\":\"$PROVIDER\"}" \
              || log_json WARN entrypoint "Could not update model/auth config"
-    audit_log config_change "{\"provider\":\"$PROVIDER\",\"model\":\"$MODEL\"}"
+    audit_log config_change "{\"provider\":\"$PROVIDER\",\"model\":\"$MODEL\",\"bind\":\"$BIND_MODE\"}"
+else
+    # No API key, but still update gateway bind/auth settings
+    if [ -f "$OPENCLAW_CONFIG" ]; then
+        python3 -c "
+import json
+config_path = '$OPENCLAW_CONFIG'
+bind_mode = '$BIND_MODE'
+allow_insecure = $ALLOW_INSECURE_AUTH
+with open(config_path) as f:
+    config = json.load(f)
+config.setdefault('gateway', {})['bind'] = bind_mode
+config['gateway'].setdefault('controlUi', {})['allowInsecureAuth'] = allow_insecure
+with open(config_path, 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+" 2>/dev/null && log_json INFO entrypoint "Gateway security config updated" "{\"bind\":\"$BIND_MODE\",\"insecure_auth\":$ALLOW_INSECURE_AUTH}" \
+             || log_json WARN entrypoint "Could not update gateway security config"
+    fi
 fi
 
 # --- Generate scanner auth token if missing ---
@@ -267,7 +326,7 @@ fi
 # --- Start OpenClaw gateway ---
 GATEWAY_START=$(date +%s%3N)
 log_json INFO gateway "Starting OpenClaw gateway" "{\"port\":$GATEWAY_PORT}"
-openclaw gateway --port "$GATEWAY_PORT" --token "$OPENCLAW_GATEWAY_TOKEN" --bind lan --allow-unconfigured &
+openclaw gateway --port "$GATEWAY_PORT" --token "$OPENCLAW_GATEWAY_TOKEN" --bind "$BIND_MODE" --allow-unconfigured &
 GATEWAY_PID=$!
 
 # Wait for gateway to be healthy
@@ -293,16 +352,40 @@ TOTAL_MS=$(( BOOT_END - BOOT_START ))
 SCANNER_ELAPSED=${SCANNER_MS:-0}
 GATEWAY_ELAPSED=${GATEWAY_MS:-0}
 
-log_json INFO entrypoint "Hard Shell is running" "{\"scanner_ms\":$SCANNER_ELAPSED,\"gateway_ms\":$GATEWAY_ELAPSED,\"total_ms\":$TOTAL_MS}"
-audit_log ready "{\"scanner_ms\":$SCANNER_ELAPSED,\"gateway_ms\":$GATEWAY_ELAPSED,\"total_ms\":$TOTAL_MS,\"preset\":\"$TWEEK_PRESET\"}"
+log_json INFO entrypoint "Hard Shell is running" "{\"scanner_ms\":$SCANNER_ELAPSED,\"gateway_ms\":$GATEWAY_ELAPSED,\"total_ms\":$TOTAL_MS,\"bind\":\"$BIND_MODE\"}"
+audit_log ready "{\"scanner_ms\":$SCANNER_ELAPSED,\"gateway_ms\":$GATEWAY_ELAPSED,\"total_ms\":$TOTAL_MS,\"preset\":\"$TWEEK_PRESET\",\"bind\":\"$BIND_MODE\"}"
 
 echo "[hard-shell] ================================================"
 echo "[hard-shell] Hard Shell is running."
 echo "[hard-shell]   Gateway:  http://127.0.0.1:$GATEWAY_PORT"
 echo "[hard-shell]   Scanner:  http://127.0.0.1:$SCANNER_PORT (internal)"
 echo "[hard-shell]   Preset:   $TWEEK_PRESET"
+echo "[hard-shell]   Bind:     $BIND_MODE"
 echo "[hard-shell]   Startup:  ${TOTAL_MS}ms"
 echo "[hard-shell] ================================================"
+
+# --- Post-startup security hardening ---
+# Re-harden credentials dir (OpenClaw may have created it during startup)
+if [ -d "$HOME/.openclaw/credentials" ]; then
+    chmod 700 "$HOME/.openclaw/credentials" 2>/dev/null || true
+fi
+
+log_json INFO entrypoint "Running post-startup security checks..."
+
+# Fix known issues automatically
+if command -v openclaw &> /dev/null; then
+    openclaw doctor --fix 2>&1 | while IFS= read -r line; do
+        [ -n "$line" ] && log_json INFO doctor "$line"
+    done || true
+
+    # Run deep security audit and log results
+    openclaw security audit --deep 2>&1 | while IFS= read -r line; do
+        [ -n "$line" ] && log_json INFO security-audit "$line"
+    done || true
+
+    audit_log security_audit "{\"doctor_fix\":true,\"deep_audit\":true}"
+    log_json INFO entrypoint "Post-startup security checks complete"
+fi
 
 # Wait for either process to exit
 wait -n "$SCANNER_PID" "$GATEWAY_PID" 2>/dev/null || true

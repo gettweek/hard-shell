@@ -20,6 +20,7 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - GEMINI_API_KEY=${GOOGLE_API_KEY:-}
       - XAI_API_KEY=${XAI_API_KEY:-}
+      - OPENCLAW_BIND_MODE=${OPENCLAW_BIND_MODE:-}
     security_opt:
       - no-new-privileges:true
     cap_drop:

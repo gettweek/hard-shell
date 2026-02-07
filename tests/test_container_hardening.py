@@ -144,6 +144,83 @@ class TestHardenedContainer:
         assert mem == 2147483648, f"Expected 2GB memory limit, got {mem}"
 
 
+class TestSecurityHardening:
+    """Verify gateway binding and credential security after startup."""
+
+    def test_openclaw_dir_permissions(self, hardened_container):
+        """~/.openclaw should be 700 (owner only)."""
+        result = _docker(
+            "exec", hardened_container,
+            "stat", "-c", "%a", "/home/node/.openclaw",
+            check=False,
+        )
+        if result.returncode == 0:
+            perms = result.stdout.strip()
+            assert perms == "700", f"Expected .openclaw to be 700, got {perms}"
+
+    def test_tweek_dir_permissions(self, hardened_container):
+        """~/.tweek should be 700 (owner only)."""
+        result = _docker(
+            "exec", hardened_container,
+            "stat", "-c", "%a", "/home/node/.tweek",
+            check=False,
+        )
+        if result.returncode == 0:
+            perms = result.stdout.strip()
+            assert perms == "700", f"Expected .tweek to be 700, got {perms}"
+
+    def test_credentials_dir_permissions(self, hardened_container):
+        """~/.openclaw/credentials should be 700 if it exists."""
+        import time
+        time.sleep(5)  # Give entrypoint time to harden
+        result = _docker(
+            "exec", hardened_container,
+            "sh", "-c", "test -d /home/node/.openclaw/credentials && stat -c '%a' /home/node/.openclaw/credentials || echo 'nodir'",
+            check=False,
+        )
+        output = result.stdout.strip()
+        if output != "nodir":
+            assert output == "700", f"Expected credentials dir to be 700, got {output}"
+
+    def test_default_bind_is_loopback(self):
+        """entrypoint.sh should default to loopback binding."""
+        import os
+        entrypoint = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "scripts", "entrypoint.sh",
+        )
+        with open(entrypoint) as f:
+            content = f.read()
+        # The default (when OPENCLAW_BIND_MODE is empty) should resolve to loopback
+        assert 'BIND_MODE="loopback"' in content, "Default bind mode should be loopback"
+
+    def test_default_config_secure(self):
+        """config/openclaw.json should default to loopback and insecure auth disabled."""
+        import os, json
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config", "openclaw.json",
+        )
+        with open(config_path) as f:
+            config = json.load(f)
+        assert config["gateway"]["bind"] == "loopback", "Default bind should be loopback"
+        assert config["gateway"]["controlUi"]["allowInsecureAuth"] is False, (
+            "Default allowInsecureAuth should be false"
+        )
+
+    def test_bind_mode_env_override_in_entrypoint(self):
+        """entrypoint.sh should read OPENCLAW_BIND_MODE env var."""
+        import os
+        entrypoint = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "scripts", "entrypoint.sh",
+        )
+        with open(entrypoint) as f:
+            content = f.read()
+        assert 'OPENCLAW_BIND_MODE' in content, "Entrypoint should support OPENCLAW_BIND_MODE"
+        assert '--bind "$BIND_MODE"' in content, "Gateway start should use $BIND_MODE variable"
+
+
 class TestDockerComposeConfig:
     """Verify docker-compose.yml has the expected security settings."""
 

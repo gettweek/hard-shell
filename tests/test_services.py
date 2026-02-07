@@ -131,3 +131,48 @@ class TestEntrypoint:
         processes = result.stdout
 
         assert "python3" in processes, "Tweek scanner server (python3) not running"
+
+
+class TestPostStartupSecurity:
+    """Verify post-startup security checks run."""
+
+    def test_security_audit_runs_at_startup(self, running_container):
+        """App log should contain security audit output from post-startup checks."""
+        if not running_container["healthy"]:
+            pytest.skip("Container not healthy")
+
+        import time
+        time.sleep(10)  # Give post-startup checks time to complete
+
+        from conftest import docker_exec
+        name = running_container["name"]
+
+        result = docker_exec(
+            name, "cat", "/home/node/logs/hard-shell.log",
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            content = result.stdout
+            assert "security" in content.lower() or "doctor" in content.lower() or "audit" in content.lower(), (
+                "Post-startup security checks should appear in app log"
+            )
+
+    def test_audit_log_has_security_audit_event(self, running_container):
+        """Audit log should contain a security_audit event."""
+        if not running_container["healthy"]:
+            pytest.skip("Container not healthy")
+
+        import time
+        time.sleep(10)
+
+        from conftest import docker_exec
+        name = running_container["name"]
+
+        result = docker_exec(
+            name, "cat", "/home/node/logs/audit.log",
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            assert "security_audit" in result.stdout, (
+                "Audit log should contain security_audit event"
+            )

@@ -169,7 +169,7 @@ cp -r "{install_test_dir['project_root']}/config" "$INSTALL_DIR/"
 cp "{install_test_dir['project_root']}/Dockerfile" "$INSTALL_DIR/"
 
 # Create data directories (bind-mounted into container)
-mkdir -p "$INSTALL_DIR/data/openclaw" "$INSTALL_DIR/data/tweek" "$INSTALL_DIR/data/workspace"
+mkdir -p "$INSTALL_DIR/data/openclaw" "$INSTALL_DIR/data/tweek" "$INSTALL_DIR/data/workspace" "$INSTALL_DIR/data/logs"
 
 # Generate gateway token (same logic as install.sh)
 GATEWAY_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
@@ -261,3 +261,4 @@ echo "DONE"
         assert (data / "openclaw").is_dir(), "data/openclaw/ not created"
         assert (data / "tweek").is_dir(), "data/tweek/ not created"
         assert (data / "workspace").is_dir(), "data/workspace/ not created"
+        assert (data / "logs").is_dir(), "data/logs/ not created"

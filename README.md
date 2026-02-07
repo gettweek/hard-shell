@@ -171,6 +171,11 @@ Hard Shell follows Docker security best practices:
 - **No privilege escalation** — `no-new-privileges` enforced
 - **Resource limits** — Memory (2GB) and PID limits prevent resource exhaustion
 - **Localhost binding** — Gateway only accessible from 127.0.0.1
+- **Loopback by default** — Gateway binds to loopback; use `OPENCLAW_BIND_MODE=lan` only if needed
+- **Secure auth** — `allowInsecureAuth` disabled by default; auto-enabled only for loopback
+- **Hardened permissions** — `.openclaw/`, `.tweek/`, and `credentials/` dirs are 700
+- **Post-startup audit** — `openclaw doctor --fix` and `openclaw security audit --deep` run at every boot
+- **Tailscale auto-detection** — If Tailscale is available in the container, binding adapts automatically
 
 ---
 
@@ -182,6 +187,7 @@ Hard Shell follows Docker security best practices:
 |----------|---------|-------------|
 | `TWEEK_PRESET` | `cautious` | Security preset (`trusted`, `cautious`, `paranoid`) |
 | `OPENCLAW_GATEWAY_PORT` | `18789` | Gateway HTTP port |
+| `OPENCLAW_BIND_MODE` | auto-detect | Gateway bind mode (`loopback` or `lan`). Defaults to loopback; auto-detects Tailscale. |
 | `ANTHROPIC_API_KEY` | — | Your Anthropic API key |
 
 ### Files

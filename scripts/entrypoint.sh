@@ -417,6 +417,18 @@ echo "[hard-shell]   Preset:   $TWEEK_PRESET"
 echo "[hard-shell]   Bind:     $BIND_MODE"
 echo "[hard-shell]   Startup:  ${TOTAL_MS}ms"
 echo "[hard-shell] ================================================"
+echo "[hard-shell]"
+echo "[hard-shell] Next steps:"
+echo "[hard-shell]   Run 'hard-shell url' on the host to get the full gateway URL"
+echo "[hard-shell]   Open the URL in your browser to start using your AI agent"
+if [ -z "$MODEL" ]; then
+    echo "[hard-shell]"
+    echo "[hard-shell]   WARNING: No LLM API key detected."
+    echo "[hard-shell]   Run 'hard-shell apikey' on the host to configure a provider."
+    echo "[hard-shell]   Supported: Anthropic, OpenAI, Google, xAI"
+    echo "[hard-shell]   Custom endpoint? Add OPENAI_BASE_URL to .env — see README."
+fi
+echo "[hard-shell] ================================================"
 
 # --- Post-startup security hardening ---
 # Re-harden credentials dir (OpenClaw may have created it during startup)

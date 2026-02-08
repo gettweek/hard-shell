@@ -71,6 +71,35 @@ gateway_url() {
     fi
 }
 
+# Print post-start instructions with gateway URL and provider guidance
+print_post_start_info() {
+    local url
+    url=$(gateway_url)
+    echo ""
+    ok "Gateway URL:"
+    echo ""
+    echo "  $url"
+    echo ""
+    info "Open this URL in your browser to start using your AI agent."
+    info "To retrieve this URL later: hard-shell url"
+    echo ""
+    # Check if an API key is configured
+    if ! grep -qE "^(ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY|XAI_API_KEY)=.+" "$INSTALL_DIR/.env" 2>/dev/null; then
+        echo -e "${RED}[hard-shell]${NC} No LLM API key configured."
+        info "  Run 'hard-shell apikey' to set up a supported provider:"
+        info "    Anthropic (Claude)  |  OpenAI (GPT-4)  |  Google (Gemini)  |  xAI (Grok)"
+        echo ""
+        info "  Using a provider not listed above? (Ollama, Azure, custom endpoint)"
+        info "    1. Add your API key to $INSTALL_DIR/.env"
+        info "    2. For OpenAI-compatible endpoints, also add:"
+        info "         OPENAI_BASE_URL=http://your-host:port/v1"
+        info "    3. Set the model in $INSTALL_DIR/data/openclaw/openclaw.json:"
+        info "         \"primary\": \"openai/your-model-name\""
+        info "    4. Restart: hard-shell restart"
+        echo ""
+    fi
+}
+
 if [ ! -d "$INSTALL_DIR" ]; then
     fail "Hard Shell not installed. Run: curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash"
 fi
@@ -85,12 +114,14 @@ case "$cmd" in
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" build
         info "Restarting..."
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d
-        ok "Updated and running. Gateway: $(gateway_url)"
+        ok "Updated and running."
+        print_post_start_info
         ;;
     start)
         info "Starting Hard Shell..."
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d
-        ok "Started. Gateway: $(gateway_url)"
+        ok "Started."
+        print_post_start_info
         ;;
     stop)
         info "Stopping Hard Shell..."
@@ -100,7 +131,8 @@ case "$cmd" in
     restart)
         info "Restarting Hard Shell..."
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d --force-recreate
-        ok "Restarted. Gateway: $(gateway_url)"
+        ok "Restarted."
+        print_post_start_info
         ;;
     status)
         docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" ps

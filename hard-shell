@@ -76,14 +76,7 @@ print_post_start_info() {
     local url
     url=$(gateway_url)
     echo ""
-    ok "Gateway URL:"
-    echo ""
-    echo "  $url"
-    echo ""
-    info "Open this URL in your browser to start using your AI agent."
-    info "To retrieve this URL later: hard-shell url"
-    echo ""
-    # Check if an API key is configured
+    # Show provider warning first (if needed), then end with the URL
     if ! grep -qE "^(ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY|XAI_API_KEY)=.+" "$INSTALL_DIR/.env" 2>/dev/null; then
         echo -e "${RED}[hard-shell]${NC} No LLM API key configured."
         info "  Run 'hard-shell apikey' to set up a supported provider:"
@@ -98,6 +91,13 @@ print_post_start_info() {
         info "    4. Restart: hard-shell restart"
         echo ""
     fi
+    ok "Gateway URL:"
+    echo ""
+    echo "  $url"
+    echo ""
+    info "Open this URL in your browser to start using your AI agent."
+    info "To retrieve this URL later: hard-shell url"
+    echo ""
 }
 
 if [ ! -d "$INSTALL_DIR" ]; then

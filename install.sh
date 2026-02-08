@@ -6,6 +6,13 @@ set -euo pipefail
 #
 # Clones the repo, builds the Docker image locally, and starts it.
 # No Docker Hub account or pre-built image required.
+#
+# Wrapped in main() so bash reads the entire script before executing.
+# Without this, `curl | bash` lets subcommands (docker compose build)
+# consume stdin bytes that bash hasn't parsed yet, losing the tail of
+# the script — including the post-install instructions.
+
+main() {
 
 REPO_URL="https://github.com/gettweek/hard-shell.git"
 INSTALL_DIR="$(pwd)/hard-shell"
@@ -313,3 +320,6 @@ info "  hard-shell url        # Print gateway URL"
 info "  hard-shell apikey     # Configure LLM provider"
 info "  hard-shell help       # All commands"
 echo ""
+
+}
+main "$@"

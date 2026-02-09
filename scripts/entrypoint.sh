@@ -244,7 +244,7 @@ import json, os
 config_path = '$OPENCLAW_CONFIG'
 model = '$MODEL'
 bind_mode = '$BIND_MODE'
-allow_insecure = $ALLOW_INSECURE_AUTH
+allow_insecure = '$ALLOW_INSECURE_AUTH' == 'true'
 
 with open(config_path) as f:
     config = json.load(f)
@@ -286,7 +286,7 @@ else
 import json
 config_path = '$OPENCLAW_CONFIG'
 bind_mode = '$BIND_MODE'
-allow_insecure = $ALLOW_INSECURE_AUTH
+allow_insecure = '$ALLOW_INSECURE_AUTH' == 'true'
 with open(config_path) as f:
     config = json.load(f)
 config.setdefault('gateway', {})['bind'] = bind_mode

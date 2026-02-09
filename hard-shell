@@ -196,6 +196,16 @@ case "$cmd" in
                     tail -100 "$LOG_DIR/audit.log"
                 fi
                 ;;
+            telemetry)
+                if [ ! -f "$LOG_DIR/telemetry.jsonl" ]; then
+                    fail "No telemetry log found at $LOG_DIR/telemetry.jsonl"
+                fi
+                if [[ "${3:-}" == "-f" ]]; then
+                    tail -f "$LOG_DIR/telemetry.jsonl"
+                else
+                    tail -100 "$LOG_DIR/telemetry.jsonl"
+                fi
+                ;;
             search)
                 TERM="${3:-}"
                 if [ -z "$TERM" ]; then
@@ -213,7 +223,7 @@ case "$cmd" in
                 echo "Log directory: $LOG_DIR"
                 echo ""
                 # File sizes
-                for f in "$LOG_DIR"/*.log "$LOG_DIR"/*.log.*; do
+                for f in "$LOG_DIR"/*.log "$LOG_DIR"/*.log.* "$LOG_DIR"/*.jsonl "$LOG_DIR"/*.jsonl.*; do
                     if [ -f "$f" ]; then
                         SIZE=$(du -h "$f" 2>/dev/null | cut -f1)
                         echo "  $(basename "$f"): $SIZE"
@@ -239,6 +249,11 @@ case "$cmd" in
                 if [ -f "$LOG_DIR/audit.log" ]; then
                     AUDIT_COUNT=$(wc -l < "$LOG_DIR/audit.log" 2>/dev/null || echo "0")
                     echo "  Audit events: $AUDIT_COUNT"
+                fi
+                # Telemetry event count
+                if [ -f "$LOG_DIR/telemetry.jsonl" ]; then
+                    TELEMETRY_COUNT=$(wc -l < "$LOG_DIR/telemetry.jsonl" 2>/dev/null || echo "0")
+                    echo "  Telemetry events: $TELEMETRY_COUNT"
                 fi
                 ;;
             ""|"-f"|"--follow")
@@ -354,6 +369,7 @@ case "$cmd" in
         echo "  logs        View container logs (pass -f to follow)"
         echo "  logs app    View structured app logs (pass -f to follow)"
         echo "  logs audit  View security audit trail (pass -f to follow)"
+        echo "  logs telemetry  View telemetry event log (pass -f to follow)"
         echo "  logs search Search log files for a term"
         echo "  logs stats  Show log summary (sizes, startup time, errors)"
         echo "  preset      View or change the security preset"

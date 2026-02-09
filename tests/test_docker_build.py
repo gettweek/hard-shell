@@ -98,6 +98,46 @@ class TestImageConfig:
         assert env_dict.get("HARD_SHELL") == "1"
         assert env_dict.get("TWEEK_PRESET") == "cautious"
 
+    def test_telemetry_plugin_exists(self, docker_image):
+        """Telemetry plugin entry point should be in the extensions directory."""
+        result = docker_run(
+            docker_image, "test", "-f",
+            "/usr/local/lib/node_modules/openclaw/extensions/telemetry/index.ts",
+            check=False,
+        )
+        assert result.returncode == 0, "telemetry/index.ts not found in extensions"
+
+    def test_telemetry_plugin_manifest(self, docker_image):
+        """Telemetry plugin manifest should be present."""
+        result = docker_run(
+            docker_image, "test", "-f",
+            "/usr/local/lib/node_modules/openclaw/extensions/telemetry/openclaw.plugin.json",
+            check=False,
+        )
+        assert result.returncode == 0, "telemetry/openclaw.plugin.json not found"
+
+    def test_telemetry_plugin_src(self, docker_image):
+        """Telemetry plugin src/ directory should be present."""
+        result = docker_run(
+            docker_image, "test", "-d",
+            "/usr/local/lib/node_modules/openclaw/extensions/telemetry/src",
+            check=False,
+        )
+        assert result.returncode == 0, "telemetry/src/ directory not found"
+
+    def test_telemetry_enabled_in_config(self, docker_image):
+        """Telemetry plugin should be enabled with correct defaults in bundled config."""
+        result = docker_run(docker_image, "cat", "/opt/hard-shell/config/openclaw.json")
+        config = json.loads(result.stdout)
+        assert "telemetry" in config["plugins"]["entries"], "telemetry plugin not in config"
+        telemetry = config["plugins"]["entries"]["telemetry"]
+        assert telemetry["enabled"] is True, "telemetry plugin not enabled"
+        assert telemetry["config"]["filePath"] == "/home/node/logs/telemetry.jsonl"
+        assert telemetry["config"]["redact"]["enabled"] is True
+        assert telemetry["config"]["integrity"]["enabled"] is True
+        assert telemetry["config"]["rateLimit"]["enabled"] is True
+        assert telemetry["config"]["rotate"]["enabled"] is True
+
 
 class TestImageSecurity:
     """Verify the image is built securely."""

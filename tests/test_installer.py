@@ -126,6 +126,19 @@ class TestInstallerScript:
         assert "docker compose" in content and "build" in content, "install.sh should build locally"
         assert "docker pull" not in content, "install.sh should not pull pre-built images"
 
+    def test_script_configures_telemetry_plugin(self):
+        """Installer should include telemetry plugin in the OpenClaw config."""
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "install.sh",
+        )
+        with open(script) as f:
+            content = f.read()
+        assert '"telemetry"' in content, "install.sh should configure the telemetry plugin"
+        assert '"filePath": "/home/node/logs/telemetry.jsonl"' in content, (
+            "install.sh should set telemetry log path to shared logs directory"
+        )
+
     def test_script_generates_token(self):
         """Installer should generate a gateway auth token."""
         script = os.path.join(

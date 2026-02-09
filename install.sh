@@ -90,6 +90,29 @@ write_openclaw_config() {
     "entries": {
       "tweek-security": {
         "enabled": true
+      },
+      "telemetry": {
+        "enabled": true,
+        "config": {
+          "enabled": true,
+          "filePath": "/home/node/logs/telemetry.jsonl",
+          "redact": {
+            "enabled": true
+          },
+          "integrity": {
+            "enabled": true
+          },
+          "rateLimit": {
+            "enabled": true,
+            "maxEventsPerSecond": 100
+          },
+          "rotate": {
+            "enabled": true,
+            "maxSizeBytes": 10485760,
+            "maxFiles": 5,
+            "compress": true
+          }
+        }
       }
     }
   }

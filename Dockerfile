@@ -41,6 +41,16 @@ COPY --from=plugin-builder /build/tweek-plugin/dist /usr/local/lib/node_modules/
 COPY --from=plugin-builder /build/tweek-plugin/package.json /usr/local/lib/node_modules/openclaw/extensions/tweek-security/package.json
 COPY tweek-openclaw-plugin/openclaw.plugin.json /usr/local/lib/node_modules/openclaw/extensions/tweek-security/openclaw.plugin.json
 
+# Install telemetry plugin (pinned commit — no build step needed,
+# OpenClaw loads .ts extensions directly at runtime)
+RUN git clone https://github.com/knostic/openclaw-telemetry.git /tmp/openclaw-telemetry \
+    && cd /tmp/openclaw-telemetry \
+    && git checkout 9f49d10c48d01fb8843ced4607d000dd3af9f97f \
+    && mkdir -p /usr/local/lib/node_modules/openclaw/extensions/telemetry \
+    && cp -R index.ts src/ package.json openclaw.plugin.json \
+       /usr/local/lib/node_modules/openclaw/extensions/telemetry/ \
+    && rm -rf /tmp/openclaw-telemetry
+
 # ---------------------------------------------------------------------------
 # Stage 3: Runtime — slim image with only what's needed
 # ---------------------------------------------------------------------------

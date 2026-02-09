@@ -333,9 +333,12 @@ for cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.tweek/config.yaml"; do
         CONFIG_HASHES="$CONFIG_HASHES\"$(basename "$cfg")\":\"$HASH\","
     fi
 done
-# Lock the Tweek plugin config if it exists (on read-only root FS, this is belt-and-suspenders)
+# Lock plugin configs (on read-only root FS, this is belt-and-suspenders)
 if [ -f /usr/local/lib/node_modules/openclaw/extensions/tweek-security/openclaw.plugin.json ]; then
     chmod 444 /usr/local/lib/node_modules/openclaw/extensions/tweek-security/openclaw.plugin.json 2>/dev/null && LOCKED_FILES=$((LOCKED_FILES + 1))
+fi
+if [ -f /usr/local/lib/node_modules/openclaw/extensions/telemetry/openclaw.plugin.json ]; then
+    chmod 444 /usr/local/lib/node_modules/openclaw/extensions/telemetry/openclaw.plugin.json 2>/dev/null && LOCKED_FILES=$((LOCKED_FILES + 1))
 fi
 # Write config hashes for post-startup tamper detection
 if [ -n "$CONFIG_HASHES" ]; then

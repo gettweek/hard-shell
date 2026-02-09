@@ -25,6 +25,28 @@ info()  { echo -e "${BLUE}[hard-shell]${NC} $*"; }
 ok()    { echo -e "${GREEN}[hard-shell]${NC} $*"; }
 fail()  { echo -e "${RED}[hard-shell]${NC} $*"; exit 1; }
 
+# Read sensitive input with asterisk masking. Asterisks go to stderr
+# so the actual value can be captured via stdout.
+read_secret() {
+    local input="" char=""
+    while IFS= read -r -s -n1 char; do
+        if [[ -z "$char" ]]; then
+            printf '\n' >&2
+            break
+        fi
+        if [[ "$char" == $'\x7f' ]] || [[ "$char" == $'\b' ]]; then
+            if [[ -n "$input" ]]; then
+                input="${input%?}"
+                printf '\b \b' >&2
+            fi
+        else
+            input+="$char"
+            printf '*' >&2
+        fi
+    done
+    printf '%s' "$input"
+}
+
 # Map API key variable name to OpenClaw model identifier
 model_for_provider() {
     case "$1" in
@@ -271,7 +293,8 @@ case "$cmd" in
             *) fail "Invalid choice." ;;
         esac
 
-        read -p "Paste your API key: " -r API_KEY_VALUE
+        echo -n "Paste your API key: "
+        API_KEY_VALUE=$(read_secret)
         if [ -z "$API_KEY_VALUE" ]; then
             fail "No key entered."
         fi

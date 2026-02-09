@@ -29,6 +29,29 @@ ok()    { echo -e "${GREEN}[hard-shell]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[hard-shell]${NC} $*"; }
 fail()  { echo -e "${RED}[hard-shell]${NC} $*"; exit 1; }
 
+# Read sensitive input with asterisk masking. Reads from /dev/tty
+# (required for curl|bash where stdin is the pipe). Asterisks go
+# to stderr so the actual value can be captured via stdout.
+read_secret() {
+    local input="" char=""
+    while IFS= read -r -s -n1 char < /dev/tty; do
+        if [[ -z "$char" ]]; then
+            printf '\n' >&2
+            break
+        fi
+        if [[ "$char" == $'\x7f' ]] || [[ "$char" == $'\b' ]]; then
+            if [[ -n "$input" ]]; then
+                input="${input%?}"
+                printf '\b \b' >&2
+            fi
+        else
+            input+="$char"
+            printf '*' >&2
+        fi
+    done
+    printf '%s' "$input"
+}
+
 # Map API key variable name to OpenClaw model identifier
 model_for_provider() {
     case "$1" in
@@ -172,8 +195,7 @@ EOF
         if [ -n "$API_KEY_VAR" ]; then
             echo ""
             echo -n "Paste your $API_KEY_VAR: "
-            API_KEY_VALUE=""
-            read API_KEY_VALUE < /dev/tty || true
+            API_KEY_VALUE=$(read_secret)
             if [ -n "$API_KEY_VALUE" ]; then
                 echo "$API_KEY_VAR=$API_KEY_VALUE" >> "$ENV_FILE"
                 ok "API key saved."
